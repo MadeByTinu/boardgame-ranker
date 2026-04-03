@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>BoardGame Ranker</title>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0D0D0D;font-family:'Raleway',sans-serif;color:#F0F0F0;min-height:100vh}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:#1A1A1A}
+::-webkit-scrollbar-thumb{background:#333;border-radius:2px}
+button{font-family:'Raleway',sans-serif}
+input{font-family:'Raleway',sans-serif}
+textarea{font-family:'Raleway',sans-serif}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.card-anim{animation:fadeIn 0.2s ease}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ─────────────────────────────────────────────
+// CONSTANTS & DATA
+// ─────────────────────────────────────────────
+const C = {
+  black:'#0D0D0D', black2:'#1A1A1A', black3:'#232323',
+  border:'#333333', white:'#F0F0F0', muted:'#666666',
+  yellow:'#F0C040', yellow2:'#FFD966', blue:'#5A9BC4', shadow:'rgba(0,0,0,0.7)'
+};
+
+const QUESTIONS = [
+  {id:'fun',      title:'Fun-Faktor',          guide:'Wie viel Spass macht das Spiel?',                                                        weight:1.5},
+  {id:'replay',   title:'Wiederspielwert',      guide:'Wie sehr möchtest du es nach einer Partie nochmal spielen?',                            weight:1.3},
+  {id:'tension',  title:'Spannung',             guide:'Wie spannend ist das Spiel bis zum Schluss?',                                           weight:1.1},
+  {id:'themefit', title:'Thematic Integration', guide:'Wie gut passen Thema und Mechanik zusammen?',                                           weight:1.1},
+  {id:'theme',    title:'Thematik',             guide:'Wie engaging findest du die Thematik?',                                                 weight:1.0},
+  {id:'aes',      title:'Ästhetik',             guide:'Wie schön ist das Artwork und das Material?',                                           weight:1.0},
+  {id:'downtime', title:'Downtime',             guide:'Wie aktiv und involviert fühlst du dich, wenn andere an der Reihe sind?',               weight:0.9},
+  {id:'balance',  title:'Balance',              guide:'Wie fair fühlt sich das Spiel an?',                                                     weight:0.9},
+  {id:'scale',    title:'Skalierung',           guide:'Wie gut funktioniert das Spiel für die Anzahl Spieler, mit denen du es meist spielst?', weight:0.7},
+  {id:'unique',   title:'Einzigartigkeit',      guide:'Wie frisch und einzigartig fühlt sich das Spiel an?',                                   weight:0.7},
+];
+
+const DEMO = [
+  {id:'d1',name:'Gloomhaven',thumbnail:'https://cf.geekdo-images.com/sZYp_3BTDGjh2unaZfZmuA__thumb/img/veqFeP4d_3zNgNJ3O7HkV0aVHhA=/fit-in/200x150/filters:strip_icc()/pic2437871.jpg',plays:23,bggRating:'8.8',bggMyRating:'9',yearPublished:2017,minPlayers:1,maxPlayers:4,playingTime:120,weight:3.86,answers:{}},
+  {id:'d2',name:'Terraforming Mars',thumbnail:'https://cf.geekdo-images.com/wg9oOLcsKvDesSUdZQ4rxw__thumb/img/BTxqxgYay5tHJfVoJ2NF5g33FoA=/fit-in/200x150/filters:strip_icc()/pic3536616.jpg',plays:14,bggRating:'8.4',bggMyRating:'8',yearPublished:2016,minPlayers:1,maxPlayers:5,playingTime:120,weight:3.26,answers:{}},
+  {id:'d3',name:'Scythe',thumbnail:'https://cf.geekdo-images.com/7k_nOxpO9OGIjhLq2BvynA__thumb/img/MX-RwFHqMiyBMKvStBgREABBqFg=/fit-in/200x150/filters:strip_icc()/pic3163924.jpg',plays:8,bggRating:'8.2',bggMyRating:'7',yearPublished:2016,minPlayers:1,maxPlayers:5,playingTime:115,weight:3.44,answers:{}},
+  {id:'d4',name:'Gaia Project',thumbnail:'https://cf.geekdo-images.com/hGWFm3hbMlCDsfCsauOQ4g__thumb/img/m1AzAKCMBtSbRYfWIBdSCxAr6Is=/fit-in/200x150/filters:strip_icc()/pic3727464.jpg',plays:5,bggRating:'8.5',bggMyRating:'',yearPublished:2017,minPlayers:1,maxPlayers:4,playingTime:150,weight:4.42,answers:{}},
+  {id:'d5',name:'Pandemic Legacy S1',thumbnail:'https://cf.geekdo-images.com/HtQNwhNQi0GQj_sheDpAcg__thumb/img/c8KiCMTlA6SRmMFAnCi1EE0iiZk=/fit-in/200x150/filters:strip_icc()/pic2452831.jpg',plays:12,bggRating:'8.6',bggMyRating:'10',yearPublished:2015,minPlayers:2,maxPlayers:4,playingTime:60,weight:2.83,answers:{}},
+  {id:'d6',name:'Twilight Imperium 4th Ed.',thumbnail:'https://cf.geekdo-images.com/purchase_qNRUHbrSEEr0Q1GFmMwXbA__thumb/img/WnNcZBnf-5vfChJh_qUFKF4pRco=/fit-in/200x150/filters:strip_icc()/pic3727516.jpg',plays:2,bggRating:'8.7',bggMyRating:'',yearPublished:2017,minPlayers:3,maxPlayers:6,playingTime:480,weight:4.29,answers:{}},
+  {id:'d7',name:'Wingspan',thumbnail:'https://cf.geekdo-images.com/yLZJCVLlIx4c7eJEWUNJ7w__thumb/img/cI786sByAMSRf6o6MXuAKO55LTc=/fit-in/200x150/filters:strip_icc()/pic4458123.jpg',plays:18,bggRating:'8.1',bggMyRating:'8',yearPublished:2019,minPlayers:1,maxPlayers:5,playingTime:70,weight:2.45,answers:{}},
+];
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let STATE = {
+  screen: 'login',
+  username: '',
+  inputVal: '',
+  loadingStep: 0,
+  loadingMsg: '',
+  loadError: '',
+  games: [],
+  ranking: [],
+  surveyGame: null,
+  rankPrompt: null,
+  pairGame: null,
+  pairQueue: [],
+  pairResults: {},
+  pairCurrent: 0,
+  pairChosen: null,
+  activeTab: 'abarbeiten',
+  sortBy: 'rank',
+  sortCat: null,
+};
+
+function loadStored() {
+  try {
+    return {
+      username: localStorage.getItem('bgr_username') || '',
+      games: JSON.parse(localStorage.getItem('bgr_games') || 'null'),
+      ranking: JSON.parse(localStorage.getItem('bgr_ranking') || 'null'),
+    };
+  } catch(e) { return {username:'',games:null,ranking:null}; }
+}
+
+function initState() {
+  const stored = loadStored();
+  if (stored.username && stored.games) {
+    STATE.screen = 'collection';
+    STATE.username = stored.username;
+    STATE.inputVal = stored.username;
+    STATE.games = stored.games;
+    STATE.ranking = stored.ranking || [];
+  }
+}
+
+function save() {
+  try {
+    localStorage.setItem('bgr_username', STATE.username);
+    localStorage.setItem('bgr_games', JSON.stringify(STATE.games));
+    localStorage.setItem('bgr_ranking', JSON.stringify(STATE.ranking));
+  } catch(e) {}
+}
+
+// ─────────────────────────────────────────────
+// LOGIC
+// ─────────────────────────────────────────────
+function calcScore(answers) {
+  if (!answers) return null;
+  let ws=0, tw=0;
+  for (const q of QUESTIONS) {
+    const v = answers[q.id];
+    if (v === undefined) continue;
+    ws += v * q.weight; tw += q.weight;
+  }
+  if (!tw) return null;
+  return Math.round((ws/tw)*10);
+}
+
+function calcCatScore(answers, qId) {
+  const v = answers && answers[qId];
+  return v !== undefined ? v * 10 : null;
+}
+
+function scoreLabel(s) {
+  if (s === null) return '';
+  if (s >= 90) return 'Meisterwerk';
+  if (s >= 80) return 'Lieblingsspiel';
+  if (s >= 70) return 'Sehr gut';
+  if (s >= 60) return 'Gut';
+  if (s >= 50) return 'Solide';
+  if (s >= 35) return 'Mittelmässig';
+  return 'Nicht meins';
+}
+
+function playGlow(plays) {
+  if (!plays || plays === 0) return {color:C.muted, glow:'none', label:'0×'};
+  if (plays === 1) return {color:'#4A7FA5', glow:'0 0 4px 1px rgba(74,127,165,0.3)', label:`${plays}×`};
+  if (plays === 2) return {color:'#5A9BC4', glow:'0 0 6px 2px rgba(90,155,196,0.4)', label:`${plays}×`};
+  if (plays === 3) return {color:'#7AB8E0', glow:'0 0 8px 3px rgba(122,184,224,0.5)', label:`${plays}×`};
+  if (plays < 8)   return {color:'#A8D4F0', glow:'0 0 10px 4px rgba(168,212,240,0.55)', label:`${plays}×`};
+  if (plays < 10)  return {color:C.yellow,  glow:'0 0 12px 4px rgba(240,192,64,0.55)', label:`${plays}×`};
+  return               {color:C.yellow2, glow:'0 0 16px 6px rgba(255,217,102,0.7)', label:`${plays}×`};
+}
+
+function insertIntoRanking(newId, results, ranking) {
+  if (ranking.length === 0) return [newId];
+  const wins   = ranking.filter(id => results[id] === 'win');
+  const losses = ranking.filter(id => results[id] === 'loss');
+  if (losses.length === 0) return [newId, ...ranking];
+  if (wins.length === 0)   return [...ranking, newId];
+  const lastWinIdx   = Math.max(...wins.map(id => ranking.indexOf(id)));
+  const firstLossIdx = Math.min(...losses.map(id => ranking.indexOf(id)));
+  if (lastWinIdx < firstLossIdx) {
+    const pos = lastWinIdx + 1;
+    return [...ranking.slice(0, pos), newId, ...ranking.slice(pos)];
+  }
+  const insertAfter = Math.round((lastWinIdx + firstLossIdx) / 2);
+  return [...ranking.slice(0, insertAfter+1), newId, ...ranking.slice(insertAfter+1)];
+}
+
+async function fetchBGGCollection(username) {
+  const bggUrl = `https://boardgamegeek.com/xmlapi2/collection?username=${encodeURIComponent(username)}&own=1&stats=1`;
+  // Try direct first, fall back to CORS proxy
+  const proxies = [
+    bggUrl,
+    `https://corsproxy.io/?${encodeURIComponent(bggUrl)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(bggUrl)}`,
+  ];
+  let text = null;
+  for (const url of proxies) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) { text = await res.text(); break; }
+    } catch(e) { continue; }
+  }
+  if (!text) return {retry: true};
+  const xml = new DOMParser().parseFromString(text, 'text/xml');
+  if (xml.querySelector('message')) return {retry: true};
+  const items = xml.querySelectorAll('item');
+  const games = [];
+  for (const item of items) {
+    const id = 'bgg_' + item.getAttribute('objectid');
+    const name = item.querySelector('name')?.textContent || 'Unbekannt';
+    const thumbnail = item.querySelector('thumbnail')?.textContent || '';
+    const plays = parseInt(item.querySelector('numplays')?.textContent || '0');
+    const bggRating = parseFloat(item.querySelector('average')?.getAttribute('value') || '0').toFixed(1);
+    let bggMyRating = item.querySelector('rating')?.getAttribute('value') || '';
+    if (bggMyRating === 'N/A') bggMyRating = '';
+    const yearPublished = parseInt(item.querySelector('yearpublished')?.textContent || '0');
+    const minPlayers = parseInt(item.querySelector('minplayers')?.getAttribute('value') || '1');
+    const maxPlayers = parseInt(item.querySelector('maxplayers')?.getAttribute('value') || '4');
+    const playingTime = parseInt(item.querySelector('playingtime')?.getAttribute('value') || '60');
+    const weight = parseFloat(item.querySelector('averageweight')?.getAttribute('value') || '2.5');
+    games.push({id, name, thumbnail, plays, bggRating, bggMyRating, yearPublished, minPlayers, maxPlayers, playingTime, weight, answers:{}});
+  }
+  return {games};
+}
+
+// ─────────────────────────────────────────────
+// RENDER ENGINE (vanilla DOM)
+// ─────────────────────────────────────────────
+function el(tag, attrs, ...children) {
+  const e = document.createElement(tag);
+  if (attrs) {
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === 'style' && typeof v === 'object') {
+        Object.assign(e.style, v);
+      } else if (k.startsWith('on') && typeof v === 'function') {
+        e.addEventListener(k.slice(2).toLowerCase(), v);
+      } else if (k === 'className') {
+        e.className = v;
+      } else if (k !== 'key') {
+        e.setAttribute(k, v);
+      }
+    }
+  }
+  for (const child of children) {
+    if (child === null || child === undefined || child === false) continue;
+    if (typeof child === 'string' || typeof child === 'number') {
+      e.appendChild(document.createTextNode(String(child)));
+    } else if (Array.isArray(child)) {
+      child.forEach(c => c && e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
+    } else {
+      e.appendChild(child);
+    }
+  }
+  return e;
+}
+
+function s(styles) { return styles; }
+
+// ─────────────────────────────────────────────
+// UI COMPONENTS
+// ─────────────────────────────────────────────
+function makeThumb(src, size=62) {
+  if (src) {
+    const img = document.createElement('img');
+    img.src = src;
+    img.alt = '';
+    img.onerror = () => { img.replaceWith(makeFallback(size)); };
+    Object.assign(img.style, {width:size+'px', height:size+'px', objectFit:'cover', flexShrink:'0', borderRadius:'8px', display:'block'});
+    return img;
+  }
+  return makeFallback(size);
+}
+
+function makeFallback(size) {
+  return el('div', {style:{width:size+'px', height:size+'px', flexShrink:'0', borderRadius:'8px', background:C.black3, display:'flex', alignItems:'center', justifyContent:'center', fontSize:Math.round(size*0.38)+'px', color:C.muted}}, '🎲');
+}
+
+function makeWeightDots(weight) {
+  const filled = Math.round(weight || 0);
+  const wrap = el('span', {style:{display:'inline-flex', gap:'4px', alignItems:'center'}});
+  for (let i=1; i<=5; i++) {
+    wrap.appendChild(el('span', {style:{width:'6px', height:'6px', borderRadius:'50%', background: i<=filled ? C.blue : C.border, display:'inline-block'}}));
+  }
+  wrap.appendChild(el('span', {style:{fontSize:'0.62rem', color:C.muted, marginLeft:'4px'}}, (weight||0).toFixed(1)));
+  return wrap;
+}
+
+function makeGameCard(game, rank, score, onSelect, showRank=false) {
+  const glow = playGlow(game.plays);
+  const scoreCol = score === null ? C.muted : score >= 75 ? C.yellow : C.blue;
+
+  const card = el('div', {
+    className: 'card-anim',
+    style:{background:C.black2, border:`1px solid ${C.border}`, borderRadius:'12px', padding:'14px', cursor:'pointer', transition:'border-color 0.15s, background 0.15s', display:'flex', gap:'12px', alignItems:'flex-start', marginBottom:'8px'},
+    onclick: () => onSelect(game)
+  });
+
+  card.addEventListener('mouseenter', () => { card.style.background = C.black3; card.style.borderColor = C.yellow; });
+  card.addEventListener('mouseleave', () => { card.style.background = C.black2; card.style.borderColor = C.border; });
+
+  if (showRank) {
+    card.appendChild(el('div', {style:{fontSize:'0.75rem', fontWeight:'800', color: rank < 3 ? C.yellow : C.muted, minWidth:'22px', paddingTop:'3px', textAlign:'center', flexShrink:'0'}}, `#${rank+1}`));
+  }
+
+  card.appendChild(makeThumb(game.thumbnail, 62));
+
+  const info = el('div', {style:{flex:'1', minWidth:'0'}});
+  info.appendChild(el('div', {style:{fontWeight:'700', fontSize:'0.95rem', color:C.white, lineHeight:'1.3'}}, game.name));
+  info.appendChild(el('div', {style:{fontSize:'0.65rem', color:C.muted, marginTop:'3px'}}, `${game.yearPublished} · ${game.minPlayers}–${game.maxPlayers} Sp. · ~${game.playingTime} min`));
+  const wdWrap = el('div', {style:{marginTop:'5px'}});
+  wdWrap.appendChild(makeWeightDots(game.weight));
+  info.appendChild(wdWrap);
+
+  const stats = el('div', {style:{display:'flex', gap:'14px', marginTop:'8px', alignItems:'flex-end'}});
+  const playsDiv = el('div');
+  playsDiv.appendChild(el('span', {style:{fontSize:'0.55rem', color:C.muted, textTransform:'uppercase', letterSpacing:'0.8px', display:'block'}}, 'Plays'));
+  playsDiv.appendChild(el('span', {style:{fontSize:'0.95rem', fontWeight:'900', color:glow.color, textShadow:glow.glow}}, glow.label));
+  stats.appendChild(playsDiv);
+  stats.appendChild(el('div', {style:{width:'1px', height:'26px', background:C.border}}));
+  const bggDiv = el('div');
+  bggDiv.appendChild(el('span', {style:{fontSize:'0.55rem', color:C.muted, textTransform:'uppercase', letterSpacing:'0.8px', display:'block'}}, 'BGG'));
+  bggDiv.appendChild(el('span', {style:{fontSize:'0.95rem', fontWeight:'800', color:C.blue}}, parseFloat(game.bggRating).toFixed(1)));
+  stats.appendChild(bggDiv);
+  if (game.bggMyRating) {
+    stats.appendChild(el('div', {style:{width:'1px', height:'26px', background:C.border}}));
+    const myDiv = el('div');
+    myDiv.appendChild(el('span', {style:{fontSize:'0.55rem', color:C.muted, textTransform:'uppercase', letterSpacing:'0.8px', display:'block'}}, 'Mein BGG'));
+    myDiv.appendChild(el('span', {style:{fontSize:'0.95rem', fontWeight:'800', color:C.yellow}}, `${game.bggMyRating}/10`));
+    stats.appendChild(myDiv);
+  }
+  info.appendChild(stats);
+  card.appendChild(info);
+
+  const right = el('div', {style:{flexShrink:'0', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'4px', minWidth:'44px'}});
+  if (score !== null) {
+    right.appendChild(el('div', {style:{fontSize:'1.5rem', fontWeight:'900', color:scoreCol, lineHeight:'1', textShadow: score>=75?`0 0 12px ${C.yellow}88`:'none'}}, String(score)));
+    right.appendChild(el('div', {style:{fontSize:'0.48rem', color:C.muted, textTransform:'uppercase', letterSpacing:'0.8px', textAlign:'right'}}, scoreLabel(score)));
+  } else {
+    right.appendChild(el('div', {style:{fontSize:'0.58rem', color:C.muted, fontStyle:'italic', textAlign:'right', paddingTop:'4px'}}, 'Bewerten →'));
+  }
+  right.appendChild(el('div', {style:{color:C.muted, fontSize:'0.85rem'}}, '›'));
+  card.appendChild(right);
+
+  return card;
+}
+
+// ─────────────────────────────────────────────
+// SCREENS
+// ─────────────────────────────────────────────
+function renderLogin() {
+  const outer = el('div', {style:{minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:'20px'}});
+  const box = el('div', {style:{background:C.black2, border:`1px solid ${C.border}`, borderRadius:'16px', padding:'44px 28px', maxWidth:'360px', width:'100%', textAlign:'center', boxShadow:`0 32px 80px ${C.shadow}`}});
+
+  const dice = el('div', {style:{width:'56px', height:'56px', borderRadius:'12px', background:C.yellow, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.7rem', margin:'0 auto 16px'}}, '🎲');
+  box.appendChild(dice);
+  box.appendChild(el('div', {style:{fontSize:'1.5rem', fontWeight:'900', letterSpacing:'2px', marginBottom:'4px', color:C.white}},
+    'BOARDGAME ', el('span', {style:{color:C.yellow}}, 'RANKER')));
+  box.appendChild(el('div', {style:{color:C.muted, fontSize:'0.75rem', marginBottom:'28px'}}, 'Dein Score. Dein Urteil.'));
+  box.appendChild(el('div', {style:{height:'1px', background:C.border, marginBottom:'22px'}}));
+  box.appendChild(el('div', {style:{fontSize:'0.62rem', textTransform:'uppercase', letterSpacing:'2px', color:C.blue, marginBottom:'10px', fontWeight:'700'}}, 'BGG Username'));
+
+  const inp = el('input', {style:{width:'100%', background:C.black3, border:`1px solid ${C.border}`, borderRadius:'8px', padding:'12px 16px', color:C.white, fontSize:'0.95rem', outline:'none', marginBottom:'12px', textAlign:'center', display:'block'}});
+  inp.value = STATE.inputVal;
+  inp.placeholder = 'Dein Username…';
+  inp.addEventListener('input', e => { STATE.inputVal = e.target.value; });
+  inp.addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+  box.appendChild(inp);
+
+  if (STATE.loadError) {
+    box.appendChild(el('div', {style:{color:'#e07070', fontSize:'0.72rem', marginBottom:'10px', lineHeight:'1.5'}}, STATE.loadError));
+  }
+
+  const btn = el('button', {style:{width:'100%', background:C.yellow, border:'none', borderRadius:'8px', padding:'13px', color:C.black, fontWeight:'900', fontSize:'0.82rem', cursor:'pointer', letterSpacing:'2px', textTransform:'uppercase', display:'block'}, onclick:doLogin}, 'Sammlung laden →');
+  box.appendChild(btn);
+  box.appendChild(el('div', {style:{color:C.muted, fontSize:'0.62rem', marginTop:'16px', lineHeight:'1.8'}}, 'Direkt von BoardGameGeek geladen.', el('br'), 'Keine Registrierung nötig.'));
+
+  outer.appendChild(box);
+
+  setTimeout(() => inp.focus(), 100);
+  return outer;
+}
+
+function renderLoading() {
+  const outer = el('div', {style:{minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center'}});
+  const inner = el('div', {style:{textAlign:'center', padding:'40px'}});
+  const diceEl = el('div', {style:{width:'58px', height:'58px', borderRadius:'12px', background:C.yellow, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.7rem', margin:'0 auto 22px', animation:'spin 1.5s linear infinite'}}, '🎲');
+  inner.appendChild(diceEl);
+  inner.appendChild(el('div', {style:{fontSize:'1rem', fontWeight:'700', color:C.white, marginBottom:'6px'}}, 'Hallo, ', el('span', {style:{color:C.yellow}}, STATE.username), '!'));
+  inner.appendChild(el('div', {style:{fontSize:'0.78rem', color:C.blue, marginBottom:'26px', minHeight:'18px'}}, STATE.loadingMsg));
+  const bar = el('div', {style:{width:'200px', height:'2px', background:C.black3, borderRadius:'1px', margin:'0 auto', overflow:'hidden'}});
+  const fill = el('div', {style:{height:'100%', background:C.yellow, borderRadius:'1px', width:`${(STATE.loadingStep/4)*100}%`, transition:'width 0.5s ease'}});
+  bar.appendChild(fill); inner.appendChild(bar);
+  outer.appendChild(inner);
+  return outer;
+}
+
+function renderCollection() {
+  const scored = STATE.games.map(g => ({...g, _score: calcScore(g.answers)}));
+  const unrated = scored.filter(g => g._score===null && Object.keys(g.answers).length===0).sort((a,b)=>parseFloat(b.bggRating)-parseFloat(a.bggRating));
+  const rated = scored.filter(g => g._score!==null);
+  const unranked = rated.filter(g => !STATE.ranking.includes(g.id));
+  const rankedGames = STATE.ranking.map(id => scored.find(g=>g.id===id)).filter(Boolean);
+
+  const wrap = el('div', {style:{minHeight:'100vh'}});
+
+  // Header
+  const header = el('div', {style:{background:C.black2, borderBottom:`1px solid ${C.border}`, padding:'0 16px', height:'50px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:'0', zIndex:'10'}});
+  header.appendChild(el('div', {style:{fontWeight:'900', fontSize:'0.85rem', letterSpacing:'1.5px'}}, '🎲 BOARDGAME ', el('span', {style:{color:C.yellow}}, 'RANKER')));
+  const hRight = el('div', {style:{display:'flex', alignItems:'center', gap:'8px'}});
+  hRight.appendChild(el('span', {style:{fontSize:'0.65rem', color:C.blue}}, '👤 ' + STATE.username));
+  hRight.appendChild(el('button', {style:{background:'transparent', border:`1px solid ${C.border}`, borderRadius:'6px', padding:'3px 8px', color:C.muted, fontSize:'0.62rem', cursor:'pointer'}, onclick:() => { STATE.screen='login'; render(); }}, '↩'));
+  header.appendChild(hRight);
+  wrap.appendChild(header);
+
+  const main = el('div', {style:{maxWidth:'580px', margin:'0 auto', padding:'14px 12px'}});
+
+  // Stats
+  const statsGrid = el('div', {style:{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px', marginBottom:'14px'}});
+  [[STATE.games.length,'Spiele',C.white],[rated.length,'Bewertet',C.blue],[rankedGames.length,'Gerankt',C.yellow],[unrated.length,'Offen',C.muted]].forEach(([v,l,col]) => {
+    const sc = el('div', {style:{background:C.black2, border:`1px solid ${C.border}`, borderRadius:'10px', padding:'10px 6px', textAlign:'center'}});
+    sc.appendChild(el('div', {style:{fontSize:'1.3rem', fontWeight:'900', color:col}}, String(v)));
+    sc.appendChild(el('div', {style:{fontSize:'0.5rem', color:C.muted, marginTop:'3px', textTransform:'uppercase', letterSpacing:'0.8px'}}, l));
+    statsGrid.appendChild(sc);
+  });
+  main.appendChild(statsGrid);
+
+  // Tabs
+  const tabBar = el('div', {style:{display:'flex', marginBottom:'14px', background:C.black2, border:`1px solid ${C.border}`, borderRadius:'10px', padding:'4px'}});
+  [['abarbeiten',`Abarbeiten (${unrated.length})`],['ranking',`Ranking (${rated.length})`]].forEach(([id, label]) => {
+    const active = STATE.activeTab === id;
+    const tab = el('button', {style:{flex:'1', padding:'9px 8px', borderRadius:'7px', border:'none', background: active?C.yellow:'transparent', color: active?C.black:C.muted, fontWeight:'800', fontSize:'0.72rem', cursor:'pointer', textTransform:'uppercase', transition:'all 0.15s'}, onclick:() => { STATE.activeTab=id; render(); }}, label);
+    tabBar.appendChild(tab);
+  });
+  main.appendChild(tabBar);
+
+  // Tab content
+  if (STATE.activeTab === 'abarbeiten') {
+    if (unranked.length > 0) {
+      const notice = el('div', {style:{background:C.blue+'15', border:`1px solid ${C.blue}33`, borderRadius:'10px', padding:'10px 14px', marginBottom:'12px', fontSize:'0.68rem', color:C.blue, lineHeight:'1.7'}});
+      notice.appendChild(el('span', {style:{fontWeight:'700'}}, `${unranked.length} bewertete Spiele`));
+      notice.appendChild(document.createTextNode(' noch nicht eingerankt — tippe sie an um sie zu ranken.'));
+      main.appendChild(notice);
+    }
+    if (unrated.length === 0 && unranked.length === 0) {
+      const done = el('div', {style:{textAlign:'center', padding:'48px 20px', color:C.muted}});
+      done.appendChild(el('div', {style:{fontSize:'2.5rem', marginBottom:'12px'}}, '🏆'));
+      done.appendChild(el('div', {style:{fontWeight:'700', fontSize:'0.9rem', color:C.white, marginBottom:'6px'}}, 'Alles erledigt!'));
+      done.appendChild(el('div', {style:{fontSize:'0.72rem'}}, 'Alle Spiele bewertet und gerankt.'));
+      main.appendChild(done);
+    } else {
+      if (unranked.length > 0) {
+        main.appendChild(el('div', {style:{fontSize:'0.6rem', color:C.blue, marginBottom:'8px', letterSpacing:'0.5px', fontWeight:'700', textTransform:'uppercase'}}, 'Bewertet, noch nicht gerankt'));
+        unranked.forEach((g,i) => main.appendChild(makeGameCard(g, i, g._score, game => { STATE.rankPrompt=game; render(); })));
+        main.appendChild(el('div', {style:{height:'8px'}}));
+      }
+      if (unrated.length > 0) {
+        main.appendChild(el('div', {style:{fontSize:'0.6rem', color:C.muted, marginBottom:'8px', letterSpacing:'0.5px', fontWeight:'700', textTransform:'uppercase'}}, 'Noch nicht bewertet · sortiert nach BGG'));
+        unrated.forEach((g,i) => main.appendChild(makeGameCard(g, i, null, game => { STATE.surveyGame=game; render(); })));
+      }
+    }
+  } else {
+    // Ranking tab
+    const sortWrap = el('div', {style:{marginBottom:'12px'}});
+    sortWrap.appendChild(el('div', {style:{fontSize:'0.6rem', color:C.muted, textTransform:'uppercase', letterSpacing:'1px', marginBottom:'8px'}}, 'Sortieren nach'));
+    const sortBtns = el('div', {style:{display:'flex', gap:'6px', flexWrap:'wrap'}});
+    [['rank','Persönliche Rangliste'],['bgg','BGG Rating'],['plays','Häufigkeit'],['app','Bewertungs-Score']].forEach(([id, label]) => {
+      const active = STATE.sortBy === id;
+      sortBtns.appendChild(el('button', {style:{padding:'6px 12px', borderRadius:'20px', border:`1px solid ${active?C.yellow:C.border}`, background: active?C.yellow+'22':'transparent', color: active?C.yellow:C.muted, fontWeight:'700', fontSize:'0.68rem', cursor:'pointer', transition:'all 0.15s'}, onclick:() => { STATE.sortBy=id; if(id!=='app') STATE.sortCat=null; render(); }}, label));
+    });
+    sortWrap.appendChild(sortBtns);
+    if (STATE.sortBy === 'app') {
+      const catBtns = el('div', {style:{marginTop:'8px', display:'flex', gap:'5px', flexWrap:'wrap'}});
+      const allActive = STATE.sortCat === null;
+      catBtns.appendChild(el('button', {style:{padding:'4px 10px', borderRadius:'20px', fontSize:'0.62rem', cursor:'pointer', border:`1px solid ${allActive?C.blue:C.border}`, background: allActive?C.blue+'22':'transparent', color: allActive?C.blue:C.muted, fontWeight:'700'}, onclick:()=>{ STATE.sortCat=null; render(); }}, 'Gesamt'));
+      QUESTIONS.forEach(q => {
+        const active = STATE.sortCat === q.id;
+        catBtns.appendChild(el('button', {style:{padding:'4px 10px', borderRadius:'20px', fontSize:'0.62rem', cursor:'pointer', border:`1px solid ${active?C.blue:C.border}`, background: active?C.blue+'22':'transparent', color: active?C.blue:C.muted, fontWeight:'700'}, onclick:()=>{ STATE.sortCat=q.id; render(); }}, q.title));
+      });
+      sortWrap.appendChild(catBtns);
+    }
+    main.appendChild(sortWrap);
+
+    if (rated.length === 0) {
+      const empty = el('div', {style:{textAlign:'center', padding:'48px 20px', color:C.muted}});
+      empty.appendChild(el('div', {style:{fontSize:'2.5rem', marginBottom:'12px'}}, '📊'));
+      empty.appendChild(el('div', {style:{fontSize:'0.8rem'}}, 'Noch keine Bewertungen.'));
+      main.appendChild(empty);
+    } else {
+      const sorted = [...rated].sort((a,b) => {
+        if (STATE.sortBy==='rank') { const ai=STATE.ranking.indexOf(a.id),bi=STATE.ranking.indexOf(b.id); if(ai===-1&&bi===-1)return 0; if(ai===-1)return 1; if(bi===-1)return-1; return ai-bi; }
+        if (STATE.sortBy==='bgg') return parseFloat(b.bggRating)-parseFloat(a.bggRating);
+        if (STATE.sortBy==='plays') return (b.plays||0)-(a.plays||0);
+        if (STATE.sortBy==='app') { if(STATE.sortCat)return(calcCatScore(b.answers,STATE.sortCat)??-1)-(calcCatScore(a.answers,STATE.sortCat)??-1); return(b._score??-1)-(a._score??-1); }
+        return 0;
+      });
+      sorted.forEach((g, i) => {
+        const rankIdx = STATE.ranking.indexOf(g.id);
+        const displayScore = STATE.sortBy==='app' && STATE.sortCat ? calcCatScore(g.answers, STATE.sortCat) : g._score;
+        main.appendChild(makeGameCard(g, STATE.sortBy==='rank'?rankIdx:i, displayScore, game => { STATE.surveyGame=game; render(); }, true));
+      });
+    }
+  }
+
+  wrap.appendChild(main);
+
+  // Survey overlay
+  if (STATE.surveyGame) wrap.appendChild(renderSurvey());
+  // Rank prompt overlay
+  if (STATE.rankPrompt) wrap.appendChild(renderRankPrompt());
+  // Pairwise overlay
+  if (STATE.pairGame) wrap.appendChild(renderPairwise());
+
+  return wrap;
+}
+
+function renderSurvey() {
+  const game = STATE.surveyGame;
+  const answers = game._surveyAnswers || game.answers || {};
+  if (!game._surveyAnswers) game._surveyAnswers = {...answers};
+
+  const answered = QUESTIONS.filter(q => game._surveyAnswers[q.id] !== undefined).length;
+  const score = calcScore(game._surveyAnswers);
+  const glow = playGlow(game.plays);
+
+  const overlay = el('div', {style:{position:'fixed', inset:'0', background:'rgba(0,0,0,0.92)', zIndex:'300', display:'flex', flexDirection:'column'}});
+
+  // Header
+  const hdr = el('div', {style:{background:C.black2, borderBottom:`1px solid ${C.border}`, padding:'12px 16px', flexShrink:'0'}});
+  const hdrRow = el('div', {style:{display:'flex', gap:'12px', alignItems:'center'}});
+  hdrRow.appendChild(makeThumb(game.thumbnail, 44));
+  const hdrInfo = el('div', {style:{flex:'1', minWidth:'0'}});
+  hdrInfo.appendChild(el('div', {style:{fontWeight:'700', fontSize:'0.9rem', color:C.white, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}, game.name));
+  const sub = el('div', {style:{fontSize:'0.7rem', marginTop:'2px'}});
+  sub.appendChild(el('span', {style:{color:glow.color, textShadow:glow.glow, fontWeight:'700'}}, glow.label));
+  sub.appendChild(document.createTextNode(` gespielt · ${answered}/${QUESTIONS.length} beantwortet`));
+  hdrInfo.appendChild(sub);
+  hdrRow.appendChild(hdrInfo);
+  if (score !== null) {
+    const scoreEl = el('div', {style:{textAlign:'center', flexShrink:'0'}});
+    scoreEl.appendChild(el('div', {style:{fontSize:'1.7rem', fontWeight:'900', lineHeight:'1', color: score>=75?C.yellow:C.blue, textShadow: score>=75?`0 0 14px ${C.yellow}88`:'none'}}, String(score)));
+    scoreEl.appendChild(el('div', {style:{fontSize:'0.48rem', color:C.muted, textTransform:'uppercase', letterSpacing:'0.8px'}}, scoreLabel(score)));
+    hdrRow.appendChild(scoreEl);
+  }
+  hdrRow.appendChild(el('button', {style:{background:'transparent', border:`1px solid ${C.border}`, borderRadius:'6px', padding:'5px 10px', color:C.muted, fontSize:'0.7rem', cursor:'pointer', flexShrink:'0'}, onclick:() => { delete game._surveyAnswers; STATE.surveyGame=null; render(); }}, '✕'));
+  hdr.appendChild(hdrRow);
+  const prog = el('div', {style:{height:'2px', background:C.border, borderRadius:'1px', marginTop:'10px', overflow:'hidden'}});
+  prog.appendChild(el('div', {style:{height:'100%', background:C.yellow, borderRadius:'1px', width:`${(answered/QUESTIONS.length)*100}%`, transition:'width 0.3s ease'}}));
+  hdr.appendChild(prog);
+  overlay.appendChild(hdr);
+
+  // Questions
+  const qArea = el('div', {style:{flex:'1', overflowY:'auto', padding:'20px 16px 100px'}});
+  QUESTIONS.forEach((q, qi) => {
+    const qBlock = el('div', {style:{marginBottom:'32px'}});
+    const titleRow = el('div', {style:{display:'flex', alignItems:'baseline', gap:'8px', marginBottom:'5px'}});
+    titleRow.appendChild(el('span', {style:{fontSize:'0.58rem', color:C.muted, fontWeight:'700', minWidth:'16px'}}, String(qi+1)));
+    titleRow.appendChild(el('span', {style:{fontSize:'1.05rem', fontWeight:'900', color:C.white, letterSpacing:'0.3px'}}, q.title));
+    titleRow.appendChild(el('span', {style:{fontSize:'0.55rem', color:C.muted, marginLeft:'auto'}}, `×${q.weight}`));
+    qBlock.appendChild(titleRow);
+    qBlock.appendChild(el('div', {style:{fontSize:'0.72rem', color:C.muted, marginBottom:'12px', paddingLeft:'24px', lineHeight:'1.5'}}, q.guide));
+
+    const scaleRow = el('div', {style:{display:'flex', gap:'5px'}});
+    for (let n=1; n<=10; n++) {
+      const sel = game._surveyAnswers[q.id] === n;
+      const btn = el('button', {style:{flex:'1', aspectRatio:'1', borderRadius:'7px', border:`1px solid ${sel?C.yellow:C.border}`, background: sel?C.yellow:C.black3, color: sel?C.black:C.muted, fontWeight: sel?'900':'500', fontSize:'0.78rem', cursor:'pointer', transition:'all 0.12s', boxShadow: sel?`0 0 8px ${C.yellow}66`:'none'}}, String(n));
+      btn.addEventListener('click', () => {
+        game._surveyAnswers[q.id] = n;
+        render();
+      });
+      scaleRow.appendChild(btn);
+    }
+    qBlock.appendChild(scaleRow);
+
+    if (game._surveyAnswers[q.id] !== undefined) {
+      const v = game._surveyAnswers[q.id];
+      const lbl = v===10?'Perfekt':v>=8?'Sehr gut':v>=6?'Gut':v>=4?'Mittelmässig':'Schwach';
+      qBlock.appendChild(el('div', {style:{textAlign:'right', fontSize:'0.6rem', color:C.yellow, marginTop:'5px', fontWeight:'600'}}, lbl));
+    }
+    qArea.appendChild(qBlock);
+  });
+
+  // Confidence note
+  const note = el('div', {style:{background:C.black3, border:`1px solid ${C.border}`, borderRadius:'8px', padding:'12px 14px', fontSize:'0.65rem', color:C.muted, lineHeight:'1.7'}});
+  note.appendChild(el('span', {style:{color:glow.color, textShadow:glow.glow, fontWeight:'700'}}, `${glow.label} gespielt`));
+  note.appendChild(document.createTextNode(' — '));
+  const confText = game.plays>=10?'Sehr verlässliche Bewertung.':game.plays>=8?'Verlässliche Bewertung.':game.plays>=5?'Gute Einschätzung.':game.plays>=3?'Erste Eindrücke.':game.plays>=2?'Noch wenig Erfahrung.':game.plays===1?'Ersteindruck — kann sich ändern.':'Noch nicht gespielt — schwierig zu bewerten.';
+  note.appendChild(document.createTextNode(confText));
+  qArea.appendChild(note);
+  overlay.appendChild(qArea);
+
+  // Save button
+  const footer = el('div', {style:{background:C.black2, borderTop:`1px solid ${C.border}`, padding:'12px 16px', flexShrink:'0'}});
+  const allDone = answered === QUESTIONS.length;
+  const saveBtn = el('button', {style:{width:'100%', background: allDone?C.yellow:C.black3, border:`1px solid ${allDone?C.yellow:C.border}`, borderRadius:'8px', padding:'13px', color: allDone?C.black:C.muted, fontWeight:'900', fontSize:'0.82rem', cursor:'pointer', letterSpacing:'2px', textTransform:'uppercase', transition:'all 0.2s', boxShadow: allDone?`0 0 16px ${C.yellow}44`:'none'}},
+    allDone ? 'Bewertung speichern →' : `Noch ${QUESTIONS.length - answered} Fragen offen`);
+  saveBtn.addEventListener('click', () => {
+    const savedAnswers = {...game._surveyAnswers};
+    delete game._surveyAnswers;
+    STATE.games = STATE.games.map(g => g.id===game.id ? {...g, answers:savedAnswers} : g);
+    save();
+    STATE.surveyGame = null;
+    STATE.rankPrompt = STATE.games.find(g => g.id === game.id);
+    render();
+  });
+  footer.appendChild(saveBtn);
+  overlay.appendChild(footer);
+  return overlay;
+}
+
+function renderRankPrompt() {
+  const game = STATE.rankPrompt;
+  const score = calcScore(game.answers);
+  const canRank = STATE.ranking.filter(id => id !== game.id).length > 0;
+
+  const overlay = el('div', {style:{position:'fixed', inset:'0', background:'rgba(0,0,0,0.92)', zIndex:'300', display:'flex', alignItems:'center', justifyContent:'center', padding:'20px'}});
+  const box = el('div', {style:{background:C.black2, border:`1px solid ${C.border}`, borderRadius:'16px', padding:'28px', maxWidth:'360px', width:'100%', textAlign:'center'}});
+  box.appendChild(el('div', {style:{fontSize:'2rem', marginBottom:'12px'}}, '✅'));
+  box.appendChild(el('div', {style:{fontWeight:'900', fontSize:'1rem', color:C.white, marginBottom:'6px'}}, 'Bewertet!'));
+  box.appendChild(el('div', {style:{fontSize:'0.75rem', color:C.muted, marginBottom:'4px'}}, game.name));
+  if (score !== null) box.appendChild(el('div', {style:{fontSize:'2rem', fontWeight:'900', color: score>=75?C.yellow:C.blue, textShadow: score>=75?`0 0 16px ${C.yellow}88`:'none', margin:'8px 0 16px'}}, String(score)));
+  box.appendChild(el('div', {style:{height:'1px', background:C.border, margin:'16px 0'}}));
+
+  if (canRank) {
+    box.appendChild(el('div', {style:{fontSize:'0.78rem', color:C.muted, marginBottom:'18px', lineHeight:'1.6'}}, 'Möchtest du das Spiel jetzt in deine ', el('span', {style:{color:C.white, fontWeight:'700'}}, 'Persönliche Rangliste'), ' einordnen?'));
+    const rankBtn = el('button', {style:{width:'100%', background:C.yellow, border:'none', borderRadius:'8px', padding:'13px', color:C.black, fontWeight:'900', fontSize:'0.82rem', cursor:'pointer', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px', display:'block', boxShadow:`0 0 16px ${C.yellow}44`}, onclick:() => {
+      const ranked = STATE.ranking.filter(id=>id!==game.id).map(id=>STATE.games.find(g=>g.id===id)).filter(Boolean);
+      if (ranked.length === 0) {
+        STATE.ranking = [game.id]; save(); STATE.rankPrompt=null; render();
+      } else {
+        const shuffled = [...ranked];
+        for (let i=shuffled.length-1; i>0; i--) { const j=Math.floor(Math.random()*(i+1)); [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]]; }
+        STATE.pairGame = game;
+        STATE.pairQueue = shuffled;
+        STATE.pairResults = {};
+        STATE.pairCurrent = 0;
+        STATE.pairChosen = null;
+        STATE.rankPrompt = null;
+        render();
+      }
+    }}, 'Jetzt ranken →');
+    box.appendChild(rankBtn);
+    box.appendChild(el('button', {style:{width:'100%', background:'transparent', border:`1px solid ${C.border}`, borderRadius:'8px', padding:'11px', color:C.muted, fontWeight:'700', fontSize:'0.78rem', cursor:'pointer', letterSpacing:'1px', textTransform:'uppercase'}, onclick:() => {
+      if (STATE.ranking.length===0 && score!==null) { STATE.ranking=[game.id]; save(); }
+      STATE.rankPrompt=null; render();
+    }}, 'Später'));
+  } else {
+    box.appendChild(el('div', {style:{fontSize:'0.75rem', color:C.muted, marginBottom:'18px', lineHeight:'1.6'}}, 'Erstes bewertetes Spiel — automatisch auf ', el('span', {style:{color:C.yellow, fontWeight:'700'}}, 'Platz #1'), ' gesetzt.'));
+    box.appendChild(el('button', {style:{width:'100%', background:C.yellow, border:'none', borderRadius:'8px', padding:'13px', color:C.black, fontWeight:'900', fontSize:'0.82rem', cursor:'pointer', letterSpacing:'2px', textTransform:'uppercase'}, onclick:() => {
+      if (STATE.ranking.length===0) { STATE.ranking=[game.id]; save(); }
+      STATE.rankPrompt=null; render();
+    }}, 'Weiter'));
+  }
+  overlay.appendChild(box);
+  return overlay;
+}
+
+function renderPairwise() {
+  const newGame = STATE.pairGame;
+  const opponent = STATE.pairQueue[STATE.pairCurrent];
+  const total = STATE.pairQueue.length;
+  const current = STATE.pairCurrent;
+  const chosen = STATE.pairChosen;
+
+  const newScore = calcScore(newGame.answers);
+  const oppScore = calcScore(opponent.answers);
+  const newGlow = playGlow(newGame.plays);
+  const oppGlow = playGlow(opponent.plays);
+
+  const overlay = el('div', {style:{position:'fixed', inset:'0', background:C.black, zIndex:'300', display:'flex', flexDirection:'column'}});
+
+  // Header
+  const hdr = el('div', {style:{background:C.black2, borderBottom:`1px solid ${C.border}`, padding:'12px 16px', flexShrink:'0'}});
+  hdr.appendChild(el('div', {style:{fontSize:'0.65rem', color:C.muted, textTransform:'uppercase', letterSpacing:'1px', marginBottom:'6px'}}, 'Welches magst du lieber?'));
+  const pb = el('div', {style:{height:'3px', background:C.border, borderRadius:'2px', overflow:'hidden'}});
+  pb.appendChild(el('div', {style:{height:'100%', background:C.yellow, borderRadius:'2px', width:`${(current/total)*100}%`, transition:'width 0.3s ease'}}));
+  hdr.appendChild(pb);
+  hdr.appendChild(el('div', {style:{fontSize:'0.6rem', color:C.muted, marginTop:'5px', textAlign:'right'}}, `${current+1} / ${total}`));
+  overlay.appendChild(hdr);
+
+  // Cards
+  const cards = el('div', {style:{flex:'1', display:'flex', flexDirection:'column', justifyContent:'center', gap:'16px', padding:'24px 16px', overflowY:'auto'}});
+  cards.appendChild(el('div', {style:{textAlign:'center', fontSize:'0.6rem', color:C.muted, textTransform:'uppercase', letterSpacing:'2px'}}, 'Tippe deinen Favorit'));
+
+  function makeCompareCard(game, score, label, labelColor, chosenId, glow) {
+    const isChosen = chosen === chosenId;
+    const isRejected = chosen && chosen !== chosenId;
+    const scoreCol = score !== null && score >= 75 ? C.yellow : C.blue;
+    const card = el('div', {style:{background: isChosen?C.black3:C.black2, border:`2px solid ${isChosen?C.yellow:C.border}`, borderRadius:'14px', padding:'18px', cursor:'pointer', transition:'all 0.2s', opacity: isRejected?'0.4':'1', boxShadow: isChosen?`0 0 24px ${C.yellow}44`:'none', transform: isChosen?'scale(1.02)':'scale(1)'}});
+    card.addEventListener('click', () => {
+      if (STATE.pairChosen) return;
+      STATE.pairChosen = chosenId;
+      render();
+      setTimeout(() => {
+        const isWin = chosenId === 'new';
+        STATE.pairResults[opponent.id] = isWin ? 'win' : 'loss';
+        STATE.pairChosen = null;
+        if (current + 1 >= total) {
+          const newRanking = insertIntoRanking(newGame.id, STATE.pairResults, STATE.ranking.filter(id=>id!==newGame.id));
+          STATE.ranking = newRanking;
+          save();
+          STATE.pairGame = null;
+        } else {
+          STATE.pairCurrent++;
+        }
+        render();
+      }, 400);
+    });
+    const inner = el('div', {style:{display:'flex', gap:'12px', alignItems:'flex-start'}});
+    inner.appendChild(makeThumb(game.thumbnail, 64));
+    const info = el('div', {style:{flex:'1', minWidth:'0'}});
+    info.appendChild(el('div', {style:{fontSize:'0.58rem', fontWeight:'700', color:labelColor, textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px'}}, label));
+    info.appendChild(el('div', {style:{fontWeight:'800', fontSize:'1rem', color:C.white, lineHeight:'1.3'}}, game.name));
+    info.appendChild(el('div', {style:{fontSize:'0.65rem', color:C.muted, marginTop:'3px'}}, `${game.yearPublished} · ~${game.playingTime} min`));
+    const playRow = el('div', {style:{marginTop:'5px', display:'flex', alignItems:'center', gap:'10px'}});
+    playRow.appendChild(el('span', {style:{fontSize:'0.72rem', fontWeight:'900', color:glow.color, textShadow:glow.glow}}, glow.label));
+    playRow.appendChild(el('span', {style:{fontSize:'0.62rem', color:C.muted}}, 'gespielt'));
+    info.appendChild(playRow);
+    inner.appendChild(info);
+    if (score !== null) {
+      const sc = el('div', {style:{textAlign:'right', flexShrink:'0'}});
+      sc.appendChild(el('div', {style:{fontSize:'1.6rem', fontWeight:'900', color:scoreCol, lineHeight:'1', textShadow: score>=75?`0 0 12px ${C.yellow}66`:'none'}}, String(score)));
+      sc.appendChild(el('div', {style:{fontSize:'0.5rem', color:C.muted, textTransform:'uppercase', letterSpacing:'0.5px'}}, scoreLabel(score)));
+      inner.appendChild(sc);
+    }
+    card.appendChild(inner);
+    return card;
+  }
+
+  cards.appendChild(makeCompareCard(newGame, newScore, 'Neu bewertet', C.yellow, 'new', newGlow));
+  const vs = el('div', {style:{display:'flex', alignItems:'center', gap:'12px'}});
+  vs.appendChild(el('div', {style:{flex:'1', height:'1px', background:C.border}}));
+  vs.appendChild(el('div', {style:{fontSize:'0.75rem', fontWeight:'900', color:C.muted, letterSpacing:'2px'}}, 'VS'));
+  vs.appendChild(el('div', {style:{flex:'1', height:'1px', background:C.border}}));
+  cards.appendChild(vs);
+  cards.appendChild(makeCompareCard(opponent, oppScore, `Rang #${STATE.ranking.filter(id=>id!==newGame.id).indexOf(opponent.id)+1}`, C.blue, 'opp', oppGlow));
+
+  overlay.appendChild(cards);
+  return overlay;
+}
+
+// ─────────────────────────────────────────────
+// ACTIONS
+// ─────────────────────────────────────────────
+async function doLogin() {
+  const raw = STATE.inputVal.trim();
+  const u = raw.startsWith('@') ? raw.slice(1) : raw;
+  if (!u) return;
+  STATE.username = u;
+  STATE.inputVal = u;
+  STATE.loadError = '';
+  STATE.screen = 'loading';
+  STATE.loadingStep = 0;
+  STATE.loadingMsg = 'Verbindung zu BoardGameGeek…';
+  render();
+
+  try {
+    STATE.loadingStep = 1; STATE.loadingMsg = 'Sammlung wird abgerufen…'; render();
+    let result = await fetchBGGCollection(u);
+
+    // BGG returns 202 "processing" — redirect to retry screen
+    if (result.retry) {
+      STATE.screen = 'retry';
+      STATE.retryUsername = u;
+      render(); return;
+    }
+
+    if (!result.games) {
+      STATE.loadError = 'Fehler beim Laden. Bitte nochmal versuchen.';
+      STATE.screen = 'login'; render(); return;
+    }
+
+    if (result.games.length === 0) {
+      STATE.loadError = 'Keine Spiele gefunden. Prüfe: (1) BGG Collection ist auf "public" gestellt, (2) Spiele haben den Status "Own" in deiner Sammlung.';
+      STATE.screen = 'login'; render(); return;
+    }
+
+    STATE.loadingStep = 2; STATE.loadingMsg = 'Spieldetails laden…'; render();
+    await new Promise(r => setTimeout(r, 200));
+    STATE.loadingStep = 3; STATE.loadingMsg = 'Bewertungen importieren…'; render();
+
+    const stored = loadStored();
+    const existing = stored.games || [];
+    const merged = result.games.map(g => {
+      const prev = existing.find(e => e.id === g.id);
+      return prev ? {...g, answers: prev.answers} : g;
+    });
+
+    STATE.loadingStep = 4; STATE.loadingMsg = 'Fertig!'; render();
+    await new Promise(r => setTimeout(r, 300));
+
+    STATE.games = merged;
+    STATE.ranking = stored.ranking || [];
+    save();
+    STATE.screen = 'collection';
+    render();
+
+  } catch(e) {
+    console.error(e);
+    STATE.loadError = 'Fehler beim Laden. Internetverbindung prüfen.';
+    STATE.screen = 'login';
+    render();
+  }
+}
+
+
+// ─────────────────────────────────────────────
+// RETRY SCREEN
+// ─────────────────────────────────────────────
+function renderRetry() {
+  const outer = el('div', {style:{minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:'20px'}});
+  const box = el('div', {style:{background:C.black2, border:`1px solid ${C.border}`, borderRadius:'16px', padding:'36px 28px', maxWidth:'360px', width:'100%', textAlign:'center'}});
+  box.appendChild(el('div', {style:{fontSize:'2rem', marginBottom:'12px'}}, '⏳'));
+  box.appendChild(el('div', {style:{fontWeight:'900', fontSize:'1rem', color:C.white, marginBottom:'8px'}}, 'BGG bereitet Daten vor'));
+  box.appendChild(el('div', {style:{fontSize:'0.78rem', color:C.muted, marginBottom:'24px', lineHeight:'1.7'}},
+    'BGG verarbeitet noch deine Sammlung.', el('br'), 'Klick nochmal wenn du bereit bist.'));
+  box.appendChild(el('div', {style:{background:C.black3, borderRadius:'8px', padding:'10px 14px', marginBottom:'20px', fontSize:'0.68rem', color:C.blue, lineHeight:'1.6'}},
+    '💡 Tipp: Warte 10–30 Sekunden und klick dann "Nochmal versuchen".'));
+  const btn = el('button', {style:{width:'100%', background:C.yellow, border:'none', borderRadius:'8px', padding:'13px', color:C.black, fontWeight:'900', fontSize:'0.82rem', cursor:'pointer', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px', display:'block'}},
+    'Nochmal versuchen →');
+  btn.addEventListener('click', async () => {
+    STATE.screen = 'loading';
+    STATE.loadingMsg = 'Sammlung wird abgerufen…';
+    STATE.loadingStep = 1;
+    render();
+    try {
+      const result = await fetchBGGCollection(STATE.retryUsername);
+      if (result.retry) {
+        STATE.screen = 'retry'; render(); return;
+      }
+      if (!result.games || result.games.length === 0) {
+        STATE.loadError = 'Keine Spiele gefunden. Ist die Collection auf "public" gestellt?';
+        STATE.screen = 'login'; render(); return;
+      }
+      STATE.loadingStep = 3; STATE.loadingMsg = 'Bewertungen importieren…'; render();
+      const stored = loadStored();
+      const existing = stored.games || [];
+      const merged = result.games.map(g => { const prev = existing.find(e => e.id === g.id); return prev ? {...g, answers: prev.answers} : g; });
+      STATE.loadingStep = 4; STATE.loadingMsg = 'Fertig!'; render();
+      await new Promise(r => setTimeout(r, 300));
+      STATE.games = merged;
+      STATE.ranking = stored.ranking || [];
+      save();
+      STATE.screen = 'collection';
+      render();
+    } catch(e) {
+      STATE.screen = 'retry'; render();
+    }
+  });
+  box.appendChild(btn);
+  box.appendChild(el('button', {style:{width:'100%', background:'transparent', border:`1px solid ${C.border}`, borderRadius:'8px', padding:'11px', color:C.muted, fontWeight:'700', fontSize:'0.78rem', cursor:'pointer'}},
+    'Zurück').addEventListener ? (() => {
+      const b = el('button', {style:{width:'100%', background:'transparent', border:`1px solid ${C.border}`, borderRadius:'8px', padding:'11px', color:C.muted, fontWeight:'700', fontSize:'0.78rem', cursor:'pointer'}}, 'Zurück');
+      b.addEventListener('click', () => { STATE.screen='login'; render(); });
+      return b;
+    })() : null);
+  // fix: just add back button directly
+  const back = el('button', {style:{width:'100%', background:'transparent', border:`1px solid ${C.border}`, borderRadius:'8px', padding:'11px', color:C.muted, fontWeight:'700', fontSize:'0.78rem', cursor:'pointer'}}, 'Zurück');
+  back.addEventListener('click', () => { STATE.screen='login'; render(); });
+  box.appendChild(back);
+  outer.appendChild(box);
+  return outer;
+}
+
+// ─────────────────────────────────────────────
+// RENDER
+// ─────────────────────────────────────────────
+function render() {
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+  if (STATE.screen === 'login')      app.appendChild(renderLogin());
+  else if (STATE.screen === 'loading') app.appendChild(renderLoading());
+  else if (STATE.screen === 'collection') app.appendChild(renderCollection());
+  else if (STATE.screen === 'retry') app.appendChild(renderRetry());
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+initState();
+render();
+</script>
+</body>
+</html>
