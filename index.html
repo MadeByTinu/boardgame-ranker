@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>BoardGame Ranker</title>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch}
+body{background:#0D0D0D;font-family:'Raleway',sans-serif;color:#F0F0F0;min-height:100vh}
+#app{min-height:100vh}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#1A1A1A}::-webkit-scrollbar-thumb{background:#333;border-radius:2px}
+button{font-family:'Raleway',sans-serif}input{font-family:'Raleway',sans-serif}textarea{font-family:'Raleway',sans-serif}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+html,body{overscroll-behavior:none;overflow-x:hidden}
+.no-scroll-jump{touch-action:manipulation}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const C={black:'#0D0D0D',black2:'#1A1A1A',black3:'#232323',border:'#333',white:'#F0F0F0',muted:'#666',yellow:'#F0C040',yellow2:'#FFD966',blue:'#5A9BC4',shadow:'rgba(0,0,0,0.7)'};
+const QUESTIONS=[
+  // STARK x1.5
+  {id:'overall',title:'Gesamteindruck',guide:'Was ist dein spontaner Gesamteindruck? Die erste Zahl die dir in den Sinn kommt.',weight:1.5,
+   labels:['Schrecklich — beschreibt das Spiel falsch','Sehr schlecht — kaum spielbar','Schlecht — werde es wohl nie wieder spielen','Unterdurchschnittlich — mehr schlecht als gut','Mittelmässig — egal ob ich es spiele oder nicht','OK — spiele es gelegentlich','Gut — spiele es meist gerne','Sehr gut — macht Spass, würde es empfehlen','Ausgezeichnet — spiele es jederzeit gerne','Herausragend — werde es immer gerne spielen']},
+
+  // NORMAL x1.0
+  {id:'quality',title:'Qualität',guide:'Wie gut ist die Materialqualität? Box, Karten, Tokens, Spielbrett.',weight:1.0,
+   labels:['Schrecklich — zerfällt sofort','Sehr schlecht — kaum brauchbar','Schlecht — deutliche Mängel','Unterdurchschnittlich — billig gemacht','Akzeptabel — nichts Besonderes','Solide — gute Verarbeitung','Gut — hochwertig','Sehr gut — Premium-Gefühl','Ausgezeichnet — top Qualität','Herausragend — beste Klasse']},
+  {id:'artwork',title:'Artwork & Design',guide:'Wie ansprechend sind Grafik, Design und Farben?',weight:1.0,
+   labels:['Hässlich — schmerzt die Augen','Sehr schlecht — kaum Aufwand','Schlecht — uninspiriert','Unterdurchschnittlich — wenig Details','OK — funktional aber vergesslich','Solide — angenehm anzuschauen','Gut — schöne Optik','Sehr gut — auffällig','Ausgezeichnet — beeindruckendes Design','Herausragend — ein Kunstwerk']},
+  {id:'replay',title:'Wiederspielwert',guide:'Möchtest du es nach einer Partie nochmal spielen? Auch nach vielen Partien?',weight:1.0,
+   labels:['Sehr niedrig — verstaubt im Regal','Sehr niedrig — ziemlich langweilig','Niedrig — selten Lust darauf','Unterdurchschnittlich — wird schnell alt','OK — spiele es gelegentlich','Solide — regelmässig auf dem Tisch','Hoch — will es meist spielen','Sehr hoch — will es immer spielen','Ausgezeichnet — wird nie alt','Herausragend — fühlt sich immer frisch an']},
+  {id:'waiting',title:'Wartezeit',guide:'Wie wenig Leerlauf hast du wenn andere am Zug sind? Wenig warten = hoch.',weight:1.0,
+   labels:['Unerträglich — schlafe zwischen den Zügen ein','Sehr lang — extrem frustrierend','Lang — oft gelangweilt','Überdurchschnittlich — mehr warten als spielen','Moderat — manchmal gelangweilt','Akzeptabel — handhabbare Wartezeit','Gut — selten am Warten','Sehr gut — immer involviert','Ausgezeichnet — kaum Wartezeit','Herausragend — nie untätig']},
+
+  // LEICHT x0.7
+  {id:'theme',title:'Thema',guide:'Wie sehr gefällt dir das Thema des Spiels? (Geschmackssache)',weight:0.7,
+   labels:['Kein Thema — rein abstrakt','Sehr schwach — kaum bemerkbar','Schwach — oberflächliches Thema','Unterdurchschnittlich — lose verknüpft','Moderat — Thema ist vorhanden','Solide — Thema gibt etwas Flair','Gut — Thema macht Spass','Sehr gut — immersives Thema','Ausgezeichnet — starkes Themengefühl','Herausragend — vollkommen immersiv']},
+  {id:'learning',title:'Lernkurve',guide:'Wie einfach ist das Spiel zu lernen und zu verstehen?',weight:0.7,
+   labels:['Unverständlich — nicht lernbar','Sehr schwer — mehrfaches Lesen nötig','Schwer — verwirrendes Regelbuch','Unterdurchschnittlich — zu viele Ausnahmen','Moderat — braucht Aufwand','OK — mit Geduld lernbar','Gut — klar genug','Sehr gut — leicht aufzunehmen','Ausgezeichnet — intuitive Regeln','Herausragend — in Minuten gelernt']},
+  {id:'interaction',title:'Interaktion',guide:'Wie viel Spielerinteraktion gibt es? (kein Einfluss auf Score)',weight:0,
+   labels:['Keine — reines Solo-Erlebnis','Minimal — selten Interaktion','Niedrig — gelegentliche Interaktion','Unterdurchschnittlich — meist paralleles Spiel','Moderat — etwas Interaktion','Solide — regelmässige Interaktion','Gut — häufiges Engagement','Sehr gut — ständige Interaktion','Ausgezeichnet — tiefe Spielerinteraktion','Herausragend — jede Aktion involviert andere']},
+
+  // KEIN IMPACT x0 — nur Info
+  {id:'weight',title:'Spielgewicht',guide:'Wie komplex ist das Spiel? Kein Einfluss auf den Score.',weight:0,
+   labels:['Trivial — kaum Hirnaktivität','Sehr leicht — minimale Entscheidungen','Leicht — einfache Entscheidungen','Eher leicht — etwas Überlegung','Mittel — ausgewogene Komplexität','Eher schwer — Planung nötig','Schwer — komplexe Strategien','Sehr schwer — intensive Planung','Extrem schwer — fast überwältigend','Maximum — Grübelfalle']},
+  {id:'price',title:'Preis',guide:'Was hat das Spiel gekostet? Kein Einfluss auf den Score.',weight:0,
+   labels:['Unter 15 CHF','15–20 CHF','20–30 CHF','30–40 CHF','40–50 CHF','50–60 CHF','60–80 CHF','80–100 CHF','100–150 CHF','150+ CHF']},
+  {id:'luck',title:'Glücksfaktor',guide:'Wie viel Glück steckt im Spiel? Kein Einfluss auf den Score.',weight:0,
+   labels:['Reines Können — kein Glück','Fast kein Glück','Sehr wenig Glück','Wenig Glück','Ausgeglichen','Etwas Glück','Merklich Glück','Viel Glück','Sehr viel Glück','Reines Glücksspiel']},
+  {id:'length',title:'Spiellänge',guide:'Wie lang dauert eine Partie? Kein Einfluss auf den Score.',weight:0,
+   labels:['Unter 10 Minuten','10–15 Minuten','15–30 Minuten','30–45 Minuten','45–60 Minuten','1–1.5 Stunden','1.5–2 Stunden','2–3 Stunden','3–5 Stunden','5+ Stunden']},
+];
+
+// ── COLOR SCALE ──
+function interpolateColor(val, max=100){
+  // 0=grey, 25=red, 50=berry, 75=blue, 100=yellow
+  const stops=[
+    {p:0,   r:102,g:102,b:102},
+    {p:25,  r:220,g:60, b:60},
+    {p:50,  r:170,g:50, b:120},
+    {p:75,  r:60, g:120,b:220},
+    {p:100, r:240,g:192,b:64},
+  ];
+  const pct=Math.max(0,Math.min(100,(val/max)*100));
+  let lo=stops[0],hi=stops[stops.length-1];
+  for(let i=0;i<stops.length-1;i++){
+    if(pct>=stops[i].p&&pct<=stops[i+1].p){lo=stops[i];hi=stops[i+1];break;}
+  }
+  const t=lo.p===hi.p?0:(pct-lo.p)/(hi.p-lo.p);
+  const r=Math.round(lo.r+(hi.r-lo.r)*t);
+  const g=Math.round(lo.g+(hi.g-lo.g)*t);
+  const b=Math.round(lo.b+(hi.b-lo.b)*t);
+  return`rgb(${r},${g},${b})`;
+}
+
+// ── WIN/LOSS SCORE ──
+function getWins(game){
+  // Count wins from own history
+  const own=Object.values(game.pairHistory||{}).filter(v=>v==='win').length;
+  // Count wins from opponents who lost to this game
+  const fromOthers=(STATE.games||[]).reduce((acc,g)=>{
+    if(g.id===game.id)return acc;
+    const r=(g.pairHistory||{})[game.id];
+    return acc+(r==='loss'?1:0);
+  },0);
+  return own+fromOthers;
+}
+function getLosses(game){
+  // Count losses from own history
+  const own=Object.values(game.pairHistory||{}).filter(v=>v==='loss').length;
+  // Count losses from opponents who beat this game
+  const fromOthers=(STATE.games||[]).reduce((acc,g)=>{
+    if(g.id===game.id)return acc;
+    const r=(g.pairHistory||{})[game.id];
+    return acc+(r==='win'?1:0);
+  },0);
+  return own+fromOthers;
+}
+function getWinRate(game){
+  const w=getWins(game),l=getLosses(game),t=w+l;
+  return t===0?null:Math.round((w/t)*100);
+}
+
+// ── STORAGE ──
+function loadStored(){try{return{username:localStorage.getItem('bgr_username')||'',password:localStorage.getItem('bgr_password')||'',games:JSON.parse(localStorage.getItem('bgr_games')||'null'),ranking:JSON.parse(localStorage.getItem('bgr_ranking')||'null')};}catch(e){return{username:'',password:'',games:null,ranking:null};}}
+function save(){try{localStorage.setItem('bgr_username',STATE.username);if(STATE.password)localStorage.setItem('bgr_password',STATE.password);localStorage.setItem('bgr_games',JSON.stringify(STATE.games));localStorage.setItem('bgr_ranking',JSON.stringify(STATE.ranking));}catch(e){}}
+
+// ── STATE ──
+const stored=loadStored();
+let STATE={
+  screen: stored.username&&stored.games?'collection':'login',
+  username: stored.username||'',
+  inputVal: stored.username||'',
+  password: stored.password||'',
+  games: stored.games||[],
+  ranking: stored.ranking||[],
+  surveyGame:null, rankPrompt:null, pairGame:null,
+  pairQueue:[], pairResults:{}, pairCurrent:0, pairChosen:null,
+  activeTab:'abarbeiten', sortBy:'rank', sortCat:null, hideExpansions:true,
+  xmlText:'', xmlError:'',
+};
+
+// ── SCORING ──
+function calcScore(answers){
+  if(!answers)return null;
+  let ws=0,tw=0;
+  for(const q of QUESTIONS){const v=answers[q.id];if(v===undefined)continue;ws+=v*q.weight;tw+=q.weight;}
+  if(!tw)return null;
+  return Math.round((ws/tw)*10);
+}
+function calcCatScore(answers,qId){const v=answers&&answers[qId];return v!==undefined?v*10:null;}
+function scoreLabel(s){if(s===null)return'';if(s>=90)return'Meisterwerk';if(s>=80)return'Lieblingsspiel';if(s>=70)return'Sehr gut';if(s>=60)return'Gut';if(s>=50)return'Solide';if(s>=35)return'Mittelmässig';return'Nicht meins';}
+function playGlow(plays){
+  if(!plays||plays===0)return{color:'transparent',glow:'none',label:'0×'};
+  if(plays===1)return{color:'#BBBBBB',glow:'0 0 10px 4px rgba(187,187,187,0.7)',label:`${plays}×`};
+  if(plays<3)return{color:'#CCCCCC',glow:'0 0 12px 5px rgba(204,204,204,0.75)',label:`${plays}×`};
+  if(plays<5)return{color:'#FF2222',glow:'0 0 16px 7px rgba(255,34,34,0.85)',label:`${plays}×`};
+  if(plays<7)return{color:'#DD44AA',glow:'0 0 20px 9px rgba(221,68,170,0.85)',label:`${plays}×`};
+  if(plays<10)return{color:'#4488FF',glow:'0 0 24px 11px rgba(68,136,255,0.85)',label:`${plays}×`};
+  if(plays<15)return{color:'#FFD700',glow:'0 0 30px 14px rgba(255,215,0,0.9)',label:`${plays}×`};
+  return{color:'#FFFFFF',glow:'0 0 40px 18px rgba(255,255,255,0.95)',label:`${plays}×`};
+}
+function insertIntoRanking(newId,results,ranking){
+  if(ranking.length===0)return[newId];
+  const wins=ranking.filter(id=>results[id]==='win');
+  const losses=ranking.filter(id=>results[id]==='loss');
+  if(losses.length===0)return[newId,...ranking];
+  if(wins.length===0)return[...ranking,newId];
+  const lastWinIdx=Math.max(...wins.map(id=>ranking.indexOf(id)));
+  const firstLossIdx=Math.min(...losses.map(id=>ranking.indexOf(id)));
+  // Always insert after the last win, before the first loss
+  const pos=lastWinIdx+1;
+  return[...ranking.slice(0,pos),newId,...ranking.slice(pos)];
+}
+
+// ── XML PARSER ──
+function parseXML(xmlText){
+  const xml=new DOMParser().parseFromString(xmlText,'text/xml');
+  if(xml.querySelector('message'))return{error:'BGG verarbeitet noch — warte 10 Sekunden und versuche nochmal.'};
+  const items=xml.querySelectorAll('item');
+  if(!items.length)return{error:'Keine Spiele gefunden. Hast du das richtige XML kopiert?'};
+  const existing=STATE.games||[];
+  const games=[];
+  for(const item of items){
+    const id='bgg_'+item.getAttribute('objectid');
+    const name=item.querySelector('name')?.textContent||'Unbekannt';
+    const thumbnail=item.querySelector('thumbnail')?.textContent||'';
+    const plays=parseInt(item.querySelector('numplays')?.textContent||'0');
+    const bggRating=parseFloat(item.querySelector('average')?.getAttribute('value')||'0').toFixed(1);
+    let bggMyRating=item.querySelector('rating')?.getAttribute('value')||'';
+    if(bggMyRating==='N/A')bggMyRating='';
+    const subtype=item.getAttribute('subtype')||'boardgame';
+    const isExpansion=subtype==='boardgameexpansion';
+    const yearPublished=parseInt(item.querySelector('yearpublished')?.textContent||'0');
+    const minPlayers=parseInt(item.querySelector('minplayers')?.getAttribute('value')||'1');
+    const maxPlayers=parseInt(item.querySelector('maxplayers')?.getAttribute('value')||'4');
+    const playingTime=parseInt(item.querySelector('playingtime')?.getAttribute('value')||'60');
+    const weight=parseFloat(item.querySelector('averageweight')?.getAttribute('value')||'2.5');
+    const prev=existing.find(e=>e.id===id);
+    games.push({id,name,thumbnail,plays,bggRating,bggMyRating,yearPublished,minPlayers,maxPlayers,playingTime,weight,isExpansion,answers:prev?prev.answers:{}});
+  }
+  return{games};
+}
+
+// ── DOM HELPERS ──
+function el(tag,attrs,...children){
+  const e=document.createElement(tag);
+  if(attrs)for(const[k,v]of Object.entries(attrs)){
+    if(k==='style'&&typeof v==='object')Object.assign(e.style,v);
+    else if(k.startsWith('on')&&typeof v==='function')e.addEventListener(k.slice(2).toLowerCase(),v);
+    else if(k==='className')e.className=v;
+    else if(k!=='key')e.setAttribute(k,v);
+  }
+  for(const child of children){
+    if(child===null||child===undefined||child===false)continue;
+    if(typeof child==='string'||typeof child==='number')e.appendChild(document.createTextNode(String(child)));
+    else if(Array.isArray(child))child.forEach(c=>c&&e.appendChild(typeof c==='string'?document.createTextNode(c):c));
+    else e.appendChild(child);
+  }
+  return e;
+}
+function makeThumb(src,size=62){
+  if(src){const img=document.createElement('img');img.src=src;img.alt='';img.onerror=()=>img.replaceWith(makeFallback(size));Object.assign(img.style,{width:size+'px',height:size+'px',objectFit:'cover',flexShrink:'0',borderRadius:'8px',display:'block'});return img;}
+  return makeFallback(size);
+}
+function makeFallback(size){return el('div',{style:{width:size+'px',height:size+'px',flexShrink:'0',borderRadius:'8px',background:C.black3,display:'flex',alignItems:'center',justifyContent:'center',fontSize:Math.round(size*0.38)+'px',color:C.muted}},'🎲');}
+function makeWeightDots(weight){
+  const filled=Math.round(weight||0);
+  const wrap=el('span',{style:{display:'inline-flex',gap:'4px',alignItems:'center'}});
+  for(let i=1;i<=5;i++)wrap.appendChild(el('span',{style:{width:'6px',height:'6px',borderRadius:'50%',background:i<=filled?C.blue:C.border,display:'inline-block'}}));
+  wrap.appendChild(el('span',{style:{fontSize:'0.62rem',color:C.muted,marginLeft:'4px'}},(weight||0).toFixed(1)));
+  return wrap;
+}
+
+// ── GAME CARD ──
+function makeGameCard(game,rank,score,onSelect,showRank=false){
+  const scoreCol=score===null?C.muted:interpolateColor(score);
+  const glow=playGlow(game.plays);
+  const borderCol=glow.color==='transparent'?C.border:glow.color;
+  const card=el('div',{style:{background:C.black2,border:`1px solid ${borderCol}`,borderRadius:'12px',padding:'14px',cursor:'pointer',transition:'border-color 0.15s, background 0.15s',display:'flex',gap:'12px',alignItems:'flex-start',marginBottom:'8px'},onclick:()=>onSelect(game)});
+  card.addEventListener('mouseenter',()=>{card.style.background=C.black3;card.style.borderColor=C.yellow;});
+  card.addEventListener('mouseleave',()=>{card.style.background=C.black2;card.style.borderColor=borderCol;});
+  if(showRank&&rank>=0)card.appendChild(el('div',{style:{fontSize:'0.75rem',fontWeight:'800',color:rank<3?C.yellow:C.muted,minWidth:'22px',paddingTop:'3px',textAlign:'center',flexShrink:'0'}},`#${rank+1}`));
+  else if(showRank)card.appendChild(el('div',{style:{fontSize:'0.75rem',fontWeight:'800',color:C.border,minWidth:'22px',paddingTop:'3px',textAlign:'center',flexShrink:'0'}},'-'));
+  card.appendChild(makeThumb(game.thumbnail,62));
+  const info=el('div',{style:{flex:'1',minWidth:'0'}});
+  info.appendChild(el('div',{style:{fontWeight:'700',fontSize:'0.95rem',color:C.white,lineHeight:'1.3'}},game.name));
+  info.appendChild(el('div',{style:{fontSize:'0.65rem',color:C.muted,marginTop:'3px'}},`${game.yearPublished} · ${game.minPlayers}–${game.maxPlayers} Sp. · ~${game.playingTime} min`));
+  if(game.weight&&game.weight!==2.5){const ww=el('div',{style:{marginTop:'5px'}});ww.appendChild(makeWeightDots(game.weight));info.appendChild(ww);}
+  const stats=el('div',{style:{display:'flex',gap:'14px',marginTop:'8px',alignItems:'flex-end'}});
+  const pd=el('div');pd.appendChild(el('span',{style:{fontSize:'0.55rem',color:C.muted,textTransform:'uppercase',letterSpacing:'0.8px',display:'block'}},'Plays'));pd.appendChild(el('span',{style:{fontSize:'0.95rem',fontWeight:'900',color:glow.color,textShadow:glow.glow}},glow.label));stats.appendChild(pd);
+  stats.appendChild(el('div',{style:{width:'1px',height:'26px',background:C.border}}));
+  const bd=el('div');bd.appendChild(el('span',{style:{fontSize:'0.55rem',color:C.muted,textTransform:'uppercase',letterSpacing:'0.8px',display:'block'}},'BGG'));bd.appendChild(el('span',{style:{fontSize:'0.95rem',fontWeight:'800',color:C.blue}},parseFloat(game.bggRating).toFixed(1)));stats.appendChild(bd);
+  if(game.bggMyRating){stats.appendChild(el('div',{style:{width:'1px',height:'26px',background:C.border}}));const md=el('div');md.appendChild(el('span',{style:{fontSize:'0.55rem',color:C.muted,textTransform:'uppercase',letterSpacing:'0.8px',display:'block'}},'Mein BGG'));md.appendChild(el('span',{style:{fontSize:'0.95rem',fontWeight:'800',color:C.yellow}},`${game.bggMyRating}/10`));stats.appendChild(md);}
+  info.appendChild(stats);card.appendChild(info);
+  const right=el('div',{style:{flexShrink:'0',display:'flex',flexDirection:'column',alignItems:'flex-end',gap:'4px',minWidth:'44px'}});
+  if(score!==null){
+    const playsGlow=playGlow(game.plays);
+    right.appendChild(el('div',{style:{fontSize:'1.5rem',fontWeight:'900',color:scoreCol,lineHeight:'1'}},String(score)));
+    right.appendChild(el('div',{style:{fontSize:'0.48rem',color:C.muted,textTransform:'uppercase',letterSpacing:'0.8px',textAlign:'right'}},scoreLabel(score)));
+  }
+  if(showRank){
+    const w=getWins(game),l=getLosses(game),t=w+l;
+    if(t>0){
+      const wr=getWinRate(game);
+      const col=interpolateColor(wr);
+      right.appendChild(el('div',{style:{fontSize:'0.55rem',color:col,textAlign:'right',marginTop:'4px',fontWeight:'700'}},`${w}W ${l}L · ${wr}%`));
+    }
+  }
+  else right.appendChild(el('div',{style:{fontSize:'0.58rem',color:C.muted,fontStyle:'italic',textAlign:'right',paddingTop:'4px'}},'Bewerten →'));
+  right.appendChild(el('div',{style:{color:C.muted,fontSize:'0.85rem'}},'›'));
+  card.appendChild(right);
+  return card;
+}
+
+// ── SURVEY ──
+function renderSurvey(){
+  const game=STATE.surveyGame;
+  if(!game._ans)game._ans={...game.answers};
+  const answered=QUESTIONS.filter(q=>game._ans[q.id]!==undefined).length;
+  const score=calcScore(game._ans);
+  const glow=playGlow(game.plays);
+  document.body.style.overflow='hidden';
+  const overlay=el('div',{style:{position:'fixed',inset:'0',background:'rgba(0,0,0,0.92)',zIndex:'300',display:'flex',flexDirection:'column',overflowY:'hidden'}});
+  const hdr=el('div',{style:{background:C.black2,borderBottom:`1px solid ${C.border}`,padding:'12px 16px',flexShrink:'0'}});
+  const hrow=el('div',{style:{display:'flex',gap:'12px',alignItems:'center'}});
+  hrow.appendChild(makeThumb(game.thumbnail,44));
+  const hi=el('div',{style:{flex:'1',minWidth:'0'}});
+  hi.appendChild(el('div',{style:{fontWeight:'700',fontSize:'0.9rem',color:C.white,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},game.name));
+  const hs=el('div',{style:{fontSize:'0.7rem',marginTop:'2px'}});
+  hs.appendChild(el('span',{style:{color:glow.color,textShadow:glow.glow,fontWeight:'700'}},glow.label));
+  hs.appendChild(el('span',{className:'remaining-count'},` gespielt · ${answered}/${QUESTIONS.length} beantwortet`));
+  hi.appendChild(hs);hrow.appendChild(hi);
+  {const se=el('div',{style:{textAlign:'center',flexShrink:'0',minWidth:'44px'}});const sn=el('div',{className:'live-score-num',style:{fontSize:'1.7rem',fontWeight:'900',lineHeight:'1',color:score!==null?interpolateColor(score):C.muted,textShadow:score!==null&&score>=75?`0 0 14px ${interpolateColor(score)}88`:'none'}},score!==null?String(score):'–');se.appendChild(sn);const sl=el('div',{className:'live-score-lbl',style:{fontSize:'0.48rem',color:C.muted,textTransform:'uppercase',letterSpacing:'0.8px'}},scoreLabel(score));se.appendChild(sl);hrow.appendChild(se);}
+  hrow.appendChild(el('button',{style:{background:'transparent',border:`1px solid ${C.border}`,borderRadius:'6px',padding:'5px 10px',color:C.muted,fontSize:'0.7rem',cursor:'pointer',flexShrink:'0'},onclick:()=>{document.body.style.overflow='';delete game._ans;STATE.surveyGame=null;render();}},'✕'));
+  hdr.appendChild(hrow);
+  const pb=el('div',{style:{height:'2px',background:C.border,borderRadius:'1px',marginTop:'10px',overflow:'hidden'}});
+  pb.appendChild(el('div',{style:{height:'100%',background:C.yellow,borderRadius:'1px',width:`${(answered/QUESTIONS.length)*100}%`,transition:'width 0.3s ease'}}));
+  hdr.appendChild(pb);overlay.appendChild(hdr);
+  const qa=el('div',{style:{flex:'1',overflowY:'auto',padding:'20px 16px 100px'}});
+  QUESTIONS.forEach((q,qi)=>{
+    const qb=el('div',{style:{marginBottom:'32px'}});
+    const tr=el('div',{style:{display:'flex',alignItems:'baseline',gap:'8px',marginBottom:'5px'}});
+    tr.appendChild(el('span',{style:{fontSize:'0.58rem',color:C.muted,fontWeight:'700',minWidth:'16px'}},String(qi+1)));
+    tr.appendChild(el('span',{style:{fontSize:'1.05rem',fontWeight:'900',color:C.white,letterSpacing:'0.3px'}},q.title));
+    tr.appendChild(el('span',{style:{fontSize:'0.55rem',color:C.muted,marginLeft:'auto'}},`×${q.weight}`));
+    qb.appendChild(tr);
+    qb.appendChild(el('div',{style:{fontSize:'0.72rem',color:C.muted,marginBottom:'12px',paddingLeft:'24px',lineHeight:'1.5'}},q.guide));
+    const sr=el('div',{style:{display:'flex',gap:'5px'}});
+    for(let n=1;n<=10;n++){
+      const sel=game._ans[q.id]===n;
+      const btn=el('button',{style:{flex:'1',aspectRatio:'1',borderRadius:'7px',border:`1px solid ${sel?C.yellow:C.border}`,background:sel?C.yellow:C.black3,color:sel?C.black:C.muted,fontWeight:sel?'900':'500',fontSize:'0.78rem',cursor:'pointer',transition:'all 0.12s',boxShadow:sel?`0 0 8px ${C.yellow}66`:'none',touchAction:'manipulation'},onclick:(e)=>{
+        e.preventDefault();
+        e.stopPropagation();
+        const scrollY=window.scrollY;
+        game._ans[q.id]=n;
+        // Update all buttons in this row without re-rendering page
+        const row=e.currentTarget.parentElement;
+        Array.from(row.children).forEach((b,idx)=>{
+          const val=idx+1;
+          const isSel=val===n;
+          b.style.background=isSel?C.yellow:C.black3;
+          b.style.border=`1px solid ${isSel?C.yellow:C.border}`;
+          b.style.color=isSel?C.black:C.muted;
+          b.style.fontWeight=isSel?'900':'500';
+          b.style.boxShadow=isSel?`0 0 8px ${C.yellow}66`:'none';
+        });
+        // Update label text in-place
+        const labelEl=row.parentElement.querySelector('.q-label');
+        if(labelEl){
+          const lbl=q.labels?q.labels[n-1]:(n===10?'Perfekt':n>=8?'Sehr gut':n>=6?'Gut':n>=4?'Mittelmässig':'Schwach');
+          labelEl.textContent=lbl;
+          labelEl.style.display='block';
+        }
+        // Update live score in header without full re-render
+        const score=calcScore(game._ans);
+        const scoreEls=document.querySelectorAll('.live-score-num');
+        scoreEls.forEach(el=>{
+          el.textContent=score!==null?String(score):'–';
+          el.style.color=score!==null?interpolateColor(score):C.muted;
+          el.style.textShadow=score!==null&&score>=75?`0 0 14px ${interpolateColor(score)}88`:'none';
+        });
+        const scoreLblEls=document.querySelectorAll('.live-score-lbl');
+        scoreLblEls.forEach(el=>{el.textContent=score!==null?scoreLabel(score):'';});
+        // Update footer button text in-place
+        const answeredNow=QUESTIONS.filter(q=>game._ans[q.id]!==undefined).length;
+        const allDoneNow=answeredNow===QUESTIONS.length;
+        const saveBtnEl=document.querySelector('.survey-save-btn');
+        if(saveBtnEl){
+          saveBtnEl.textContent=allDoneNow?'Bewertung speichern →':`Noch ${QUESTIONS.length-answeredNow} Fragen offen`;
+          saveBtnEl.style.background=allDoneNow?C.yellow:C.black3;
+          saveBtnEl.style.color=allDoneNow?C.black:C.muted;
+          saveBtnEl.style.border=`1px solid ${allDoneNow?C.yellow:C.border}`;
+          saveBtnEl.style.boxShadow=allDoneNow?`0 0 16px ${C.yellow}44`:'none';
+        }
+        // Restore scroll position
+        requestAnimationFrame(()=>window.scrollTo(0,scrollY));
+      }},String(n));
+      sr.appendChild(btn);
+    }
+    qb.appendChild(sr);
+    const labelDiv=el('div',{className:'q-label',style:{textAlign:'right',fontSize:'0.6rem',color:C.yellow,marginTop:'5px',fontWeight:'600',display:game._ans[q.id]!==undefined?'block':'none'}},game._ans[q.id]!==undefined?(q.labels?q.labels[game._ans[q.id]-1]:(game._ans[q.id]===10?'Perfekt':game._ans[q.id]>=8?'Sehr gut':game._ans[q.id]>=6?'Gut':game._ans[q.id]>=4?'Mittelmässig':'Schwach')):'');
+qb.appendChild(labelDiv);
+    qa.appendChild(qb);
+  });
+  const note=el('div',{style:{background:C.black3,border:`1px solid ${C.border}`,borderRadius:'8px',padding:'12px 14px',fontSize:'0.65rem',color:C.muted,lineHeight:'1.7'}});
+  note.appendChild(el('span',{style:{color:glow.color,textShadow:glow.glow,fontWeight:'700'}},`${glow.label} gespielt`));
+  note.appendChild(document.createTextNode(' — '+(game.plays>=10?'Sehr verlässliche Bewertung.':game.plays>=8?'Verlässliche Bewertung.':game.plays>=5?'Gute Einschätzung.':game.plays>=3?'Erste Eindrücke.':game.plays>=2?'Noch wenig Erfahrung.':game.plays===1?'Ersteindruck — kann sich ändern.':'Noch nicht gespielt — schwierig zu bewerten.')));
+  qa.appendChild(note);overlay.appendChild(qa);
+  const allDone=answered===QUESTIONS.length;
+  const footer=el('div',{style:{background:C.black2,borderTop:`1px solid ${C.border}`,padding:'12px 16px',flexShrink:'0'}});
+  const saveBtn=el('button',{className:'survey-save-btn',style:{width:'100%',background:allDone?C.yellow:C.black3,border:`1px solid ${allDone?C.yellow:C.border}`,borderRadius:'8px',padding:'13px',color:allDone?C.black:C.muted,fontWeight:'900',fontSize:'0.82rem',cursor:'pointer',letterSpacing:'2px',textTransform:'uppercase',transition:'all 0.2s',boxShadow:allDone?`0 0 16px ${C.yellow}44`:'none'},onclick:()=>{
+    const saved={...game._ans};delete game._ans;
+    STATE.games=STATE.games.map(g=>g.id===game.id?{...g,answers:saved}:g);
+    document.body.style.overflow='';save();STATE.surveyGame=null;
+    STATE.rankPrompt=STATE.games.find(g=>g.id===game.id);
+    render();
+  }},allDone?'Bewertung speichern & Ranken →':`Noch ${QUESTIONS.length-answered} Fragen offen`);
+  footer.appendChild(saveBtn);
+  if(STATE.ranking.includes(game.id)&&allDone){
+    const saveOnlyBtn=el('button',{style:{width:'100%',background:'transparent',border:`1px solid ${C.border}`,borderRadius:'8px',padding:'10px',color:C.muted,fontWeight:'700',fontSize:'0.75rem',cursor:'pointer',marginTop:'8px'},onclick:()=>{
+      const saved={...game._ans};delete game._ans;
+      STATE.games=STATE.games.map(g=>g.id===game.id?{...g,answers:saved}:g);
+      document.body.style.overflow='';save();STATE.surveyGame=null;render();
+    }},'Nur speichern, nicht neu ranken');
+    // Show rank prompt button for already ranked games too
+    footer.appendChild(saveOnlyBtn);
+  }overlay.appendChild(footer);
+  return overlay;
+}
+
+// ── RANK PROMPT ──
+function renderRankPrompt(){
+  const game=STATE.rankPrompt;
+  const score=calcScore(game.answers);
+  const canRank=STATE.ranking.filter(id=>id!==game.id).length>0;
+  const overlay=el('div',{style:{position:'fixed',inset:'0',background:'rgba(0,0,0,0.92)',zIndex:'300',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
+  const box=el('div',{style:{background:C.black2,border:`1px solid ${C.border}`,borderRadius:'16px',padding:'28px',maxWidth:'360px',width:'100%',textAlign:'center'}});
+  box.appendChild(el('div',{style:{fontSize:'2rem',marginBottom:'12px'}},'✅'));
+  box.appendChild(el('div',{style:{fontWeight:'900',fontSize:'1rem',color:C.white,marginBottom:'6px'}},'Bewertet!'));
+  box.appendChild(el('div',{style:{fontSize:'0.75rem',color:C.muted,marginBottom:'4px'}},game.name));
+  if(score!==null)box.appendChild(el('div',{style:{fontSize:'2rem',fontWeight:'900',color:score>=75?C.yellow:C.blue,textShadow:score>=75?`0 0 16px ${C.yellow}88`:'none',margin:'8px 0 16px'}},String(score)));
+  box.appendChild(el('div',{style:{height:'1px',background:C.border,margin:'16px 0'}}));
+  if(canRank){
+    box.appendChild(el('div',{style:{fontSize:'0.78rem',color:C.muted,marginBottom:'18px',lineHeight:'1.6'}},'Möchtest du das Spiel jetzt in deine ',el('span',{style:{color:C.white,fontWeight:'700'}},'Persönliche Rangliste'),' einordnen?'));
+    box.appendChild(el('button',{style:{width:'100%',background:C.yellow,border:'none',borderRadius:'8px',padding:'13px',color:C.black,fontWeight:'900',fontSize:'0.82rem',cursor:'pointer',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'10px',display:'block',boxShadow:`0 0 16px ${C.yellow}44`},onclick:()=>{
+      const ranked=STATE.ranking.filter(id=>id!==game.id).map(id=>STATE.games.find(g=>g.id===id)).filter(Boolean);
+      if(ranked.length===0){STATE.ranking=[game.id];save();STATE.rankPrompt=null;render();}
+      else{const s=[...ranked];for(let i=s.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[s[i],s[j]]=[s[j],s[i]];}// Reset own history AND remove this game from all other games' histories
+        STATE.games=STATE.games.map(g=>{
+          if(g.id===game.id)return{...g,pairHistory:{}};
+          const h={...g.pairHistory||{}};
+          delete h[game.id];
+          return{...g,pairHistory:h};
+        });
+        game.pairHistory={};
+        STATE.pairGame=game;STATE.pairQueue=s;STATE.pairResults={};STATE.pairCurrent=0;STATE.pairChosen=null;STATE.rankPrompt=null;render();}
+    }},'Jetzt ranken →'));
+    box.appendChild(el('button',{style:{width:'100%',background:'transparent',border:`1px solid ${C.border}`,borderRadius:'8px',padding:'11px',color:C.muted,fontWeight:'700',fontSize:'0.78rem',cursor:'pointer',letterSpacing:'1px',textTransform:'uppercase'},onclick:()=>{
+    // Just save, don't rank
+    if(STATE.ranking.length===0&&score!==null){STATE.ranking=[game.id];save();}
+    STATE.rankPrompt=null;render();
+  }},'Nur speichern, nicht ranken'));
+  }else{
+    box.appendChild(el('div',{style:{fontSize:'0.75rem',color:C.muted,marginBottom:'18px',lineHeight:'1.6'}},'Erstes Spiel — automatisch auf ',el('span',{style:{color:C.yellow,fontWeight:'700'}},'Platz #1'),' gesetzt.'));
+    box.appendChild(el('button',{style:{width:'100%',background:C.yellow,border:'none',borderRadius:'8px',padding:'13px',color:C.black,fontWeight:'900',fontSize:'0.82rem',cursor:'pointer',letterSpacing:'2px',textTransform:'uppercase'},onclick:()=>{if(STATE.ranking.length===0){STATE.ranking=[game.id];save();}STATE.rankPrompt=null;render();}},'Weiter'));
+  }
+  overlay.appendChild(box);return overlay;
+}
+
+// ── PAIRWISE ──
+function renderPairwise(){
+  const newGame=STATE.pairGame,opponent=STATE.pairQueue[STATE.pairCurrent],total=STATE.pairQueue.length,current=STATE.pairCurrent,chosen=STATE.pairChosen;
+  const newScore=calcScore(newGame.answers),oppScore=calcScore(opponent.answers);
+  const newGlow=playGlow(newGame.plays),oppGlow=playGlow(opponent.plays);
+  const overlay=el('div',{className:'pairwise-overlay',style:{position:'fixed',inset:'0',background:C.black,zIndex:'300',display:'flex',flexDirection:'column'}});
+  const hdr=el('div',{style:{background:C.black2,borderBottom:`1px solid ${C.border}`,padding:'12px 16px',flexShrink:'0'}});
+  const hdrRow=el('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'6px'}});
+  hdrRow.appendChild(el('div',{style:{fontSize:'0.65rem',color:C.muted,textTransform:'uppercase',letterSpacing:'1px'}},'Welches magst du lieber?'));
+  const btnGroup=el('div',{style:{display:'flex',gap:'6px'}});
+  if(current>0){
+    btnGroup.appendChild(el('button',{style:{background:'transparent',border:`1px solid ${C.border}`,borderRadius:'6px',padding:'4px 10px',color:C.muted,fontSize:'0.62rem',cursor:'pointer'},onclick:()=>{
+      STATE.pairCurrent--;
+      const prevOpp=STATE.pairQueue[STATE.pairCurrent];
+      if(newGame.pairHistory&&prevOpp){
+        delete newGame.pairHistory[prevOpp.id];
+        STATE.games=STATE.games.map(g=>g.id===newGame.id?{...g,pairHistory:newGame.pairHistory}:g);
+      }
+      delete STATE.pairResults[prevOpp?.id];
+      STATE.pairChosen=null;render();
+    }},'← Zurück'));
+  }
+  btnGroup.appendChild(el('button',{style:{background:'transparent',border:`1px solid #e0707055`,borderRadius:'6px',padding:'4px 10px',color:'#e07070',fontSize:'0.62rem',cursor:'pointer'},onclick:()=>{
+    if(current===0){STATE.pairGame=null;STATE.pairQueue=[];STATE.pairResults={};STATE.pairCurrent=0;render();}
+    else{STATE.pairCancelConfirm=true;render();}
+  }},'✕ Abbrechen'));
+  hdrRow.appendChild(btnGroup);
+  hdr.appendChild(hdrRow);
+  const pb=el('div',{style:{height:'3px',background:C.border,borderRadius:'2px',overflow:'hidden'}});
+  pb.appendChild(el('div',{style:{height:'100%',background:C.yellow,borderRadius:'2px',width:`${(current/total)*100}%`,transition:'width 0.3s ease'}}));
+  hdr.appendChild(pb);hdr.appendChild(el('div',{style:{fontSize:'0.6rem',color:C.muted,marginTop:'5px',textAlign:'right'}},`${current+1} / ${total}`));
+  overlay.appendChild(hdr);
+  const cards=el('div',{style:{flex:'1',display:'flex',flexDirection:'column',justifyContent:'center',gap:'16px',padding:'24px 16px',overflowY:'auto'}});
+  cards.appendChild(el('div',{style:{textAlign:'center',fontSize:'0.6rem',color:C.muted,textTransform:'uppercase',letterSpacing:'2px'}},'Tippe deinen Favorit'));
+  function makeCC(game,score,label,labelColor,chosenId,glow){
+    const isChosen=chosen===chosenId,isRejected=chosen&&chosen!==chosenId,scoreCol=score!==null&&score>=75?C.yellow:C.blue;
+    const card=el('div',{'data-gameid':game.id,style:{background:isChosen?C.black3:C.black2,border:`2px solid ${isChosen?C.yellow:C.border}`,borderRadius:'14px',padding:'18px',cursor:'pointer',transition:'all 0.2s',opacity:isRejected?'0.4':'1',boxShadow:isChosen?`0 0 24px ${C.yellow}44`:'none',transform:isChosen?'scale(1.02)':'scale(1)'},onclick:()=>{
+      if(STATE.pairChosen)return;
+      STATE.pairChosen=chosenId;render();
+      setTimeout(()=>{
+        const didWin=chosenId==='new';
+        STATE.pairResults[opponent.id]=didWin?'win':'loss';
+
+        // Check previous result for this pair
+        const histKey=opponent.id;
+        const prevResult=(newGame.pairHistory||{})[histKey];
+        const sameAsLast=prevResult===(didWin?'win':'loss');
+
+        // Save result to pairHistory (only if changed)
+        if(!sameAsLast){
+          if(!newGame.pairHistory)newGame.pairHistory={};
+          newGame.pairHistory[histKey]=didWin?'win':'loss';
+          STATE.games=STATE.games.map(g=>g.id===newGame.id?{...g,pairHistory:newGame.pairHistory}:g);
+        }
+
+        // Update W/L display targets for animation
+        document.querySelectorAll('.elo-live').forEach(el=>{
+          const card=el.closest('[data-gameid]');
+          if(!card)return;
+          const gid=card.getAttribute('data-gameid');
+          const g=STATE.games.find(x=>x.id===gid);
+          if(g){
+            el.setAttribute('data-to-w',getWins(g));
+            el.setAttribute('data-to-l',getLosses(g));
+          }
+        });
+        // Animate rank change for opponent
+        const allRankedNow=STATE.ranking.filter(id=>id!==newGame.id).map(id=>STATE.games.find(g=>g.id===id)).filter(Boolean);
+        const sortedNow=[...allRankedNow].sort((a,b)=>(getWinRate(b)??-1)-(getWinRate(a)??-1));
+        document.querySelectorAll('.pair-rank-label').forEach(el=>{
+          const card=el.closest('[data-gameid]');
+          if(!card)return;
+          const gid=card.getAttribute('data-gameid');
+          const g=STATE.games.find(x=>x.id===gid);
+          if(!g||gid===newGame.id)return;
+          const newRank=sortedNow.indexOf(g)+1;
+          const oldRank=parseInt(el.textContent.replace('Rang #',''))||newRank;
+          if(newRank!==oldRank){
+            // Count animation
+            const diff=newRank-oldRank;
+            const steps=Math.abs(diff);
+            const stepTime=Math.max(30,400/steps);
+            let cur=oldRank;
+            el.style.color='#FFD700';
+            const iv=setInterval(()=>{
+              cur+=diff>0?1:-1;
+              el.textContent=`Rang #${cur}`;
+              if(cur===newRank){clearInterval(iv);el.style.color='';}
+            },stepTime);
+          }
+        });
+
+        // Animate W/L counting then swipe
+      setTimeout(()=>{
+        const eloEls=document.querySelectorAll('.elo-live');
+        eloEls.forEach(el=>{
+          const fromW=parseInt(el.getAttribute('data-from-w')||0);
+          const fromL=parseInt(el.getAttribute('data-from-l')||0);
+          const toW=parseInt(el.getAttribute('data-to-w')||fromW);
+          const toL=parseInt(el.getAttribute('data-to-l')||fromL);
+          const diffW=toW-fromW, diffL=toL-fromL;
+          if(diffW===0&&diffL===0)return;
+          const steps=Math.max(Math.abs(diffW),Math.abs(diffL),1);
+          const stepTime=Math.max(10,450/steps);
+          let curW=fromW, curL=fromL;
+          el.style.color='#FFD700';
+          el.style.transition='color 0.2s';
+          const iv=setInterval(()=>{
+            if(curW!==toW)curW+=(diffW>0?1:-1);
+            if(curL!==toL)curL+=(diffL>0?1:-1);
+            el.textContent=`${curW}W ${curL}L`;
+            if(curW===toW&&curL===toL){
+              clearInterval(iv);
+              el.style.color='#5A9BC4';
+            }
+          },stepTime);
+        });
+        // Swipe after animation (500ms)
+        setTimeout(()=>{
+          const ov=document.querySelector('.pairwise-overlay');
+          if(ov){ov.style.transition='transform 0.25s ease,opacity 0.25s ease';ov.style.transform='translateX(-110%)';ov.style.opacity='0';}
+          setTimeout(()=>{
+            STATE.pairChosen=null;
+            if(current+1>=total){
+              const nr=insertIntoRanking(newGame.id,STATE.pairResults,STATE.ranking.filter(id=>id!==newGame.id));
+              STATE.ranking=nr;
+              save();STATE.pairGame=null;
+            } else STATE.pairCurrent++;
+            render();
+          },250);
+        },500);
+      },150);
+    });
+    }});
+    const inner=el('div',{style:{display:'flex',gap:'12px',alignItems:'flex-start'}});
+    inner.appendChild(makeThumb(game.thumbnail,64));
+    const info=el('div',{style:{flex:'1',minWidth:'0'}});
+    // Calculate current rank by win rate
+    const allRanked=STATE.ranking.filter(id=>id!==STATE.pairGame?.id).map(id=>STATE.games.find(g=>g.id===id)).filter(Boolean);
+    const sortedByWR=[...allRanked].sort((a,b)=>(getWinRate(b)??-1)-(getWinRate(a)??-1));
+    const currentRank=sortedByWR.indexOf(game)+1;
+    const rankLabel=label==='Neu bewertet'?label:(currentRank>0?`Rang #${currentRank}`:'');
+    const rankEl=el('div',{className:'pair-rank-label',style:{fontSize:'0.58rem',fontWeight:'700',color:labelColor,textTransform:'uppercase',letterSpacing:'1px',marginBottom:'4px'}},rankLabel);
+    info.appendChild(rankEl);
+    info.appendChild(el('div',{style:{fontWeight:'800',fontSize:'1rem',color:C.white,lineHeight:'1.3'}},game.name));
+    info.appendChild(el('div',{style:{fontSize:'0.65rem',color:C.muted,marginTop:'3px'}},`${game.yearPublished} · ~${game.playingTime} min`));
+    const pr=el('div',{style:{marginTop:'5px',display:'flex',alignItems:'center',gap:'10px'}});
+    pr.appendChild(el('span',{style:{fontSize:'0.72rem',fontWeight:'900',color:glow.color,textShadow:glow.glow}},glow.label));
+    pr.appendChild(el('span',{style:{fontSize:'0.62rem',color:C.muted}},'gespielt'));
+    info.appendChild(pr);
+    // Show current ELO
+    const curWins=getWins(game);
+    const curLosses=getLosses(game);
+    const wlDiv=el('div',{className:'elo-live',style:{fontSize:'0.6rem',color:C.blue,marginTop:'3px',fontWeight:'700',display:'inline-block'}},`${curWins}W ${curLosses}L`);
+    wlDiv.setAttribute('data-from-w',curWins);
+    wlDiv.setAttribute('data-from-l',curLosses);
+    wlDiv.setAttribute('data-to-w',curWins);
+    wlDiv.setAttribute('data-to-l',curLosses);
+    info.appendChild(wlDiv);
+    inner.appendChild(info);
+    if(score!==null){const sc=el('div',{style:{textAlign:'right',flexShrink:'0'}});sc.appendChild(el('div',{style:{fontSize:'1.6rem',fontWeight:'900',color:scoreCol,lineHeight:'1',textShadow:score>=75?`0 0 12px ${C.yellow}66`:'none'}},String(score)));sc.appendChild(el('div',{style:{fontSize:'0.5rem',color:C.muted,textTransform:'uppercase',letterSpacing:'0.5px'}},scoreLabel(score)));inner.appendChild(sc);}
+    card.appendChild(inner);return card;
+  }
+  cards.appendChild(makeCC(newGame,newScore,'Neu bewertet',C.yellow,'new',newGlow));
+  const vs=el('div',{style:{display:'flex',alignItems:'center',gap:'12px'}});
+  vs.appendChild(el('div',{style:{flex:'1',height:'1px',background:C.border}}));
+  vs.appendChild(el('div',{style:{fontSize:'0.75rem',fontWeight:'900',color:C.muted,letterSpacing:'2px'}},'VS'));
+  vs.appendChild(el('div',{style:{flex:'1',height:'1px',background:C.border}}));
+  cards.appendChild(vs);
+  cards.appendChild(makeCC(opponent,oppScore,`Rang #${STATE.ranking.filter(id=>id!==newGame.id).indexOf(opponent.id)+1}`,C.blue,'opp',oppGlow));
+  overlay.appendChild(cards);return overlay;
+}
+
+// ── SCREENS ──
+function renderLogin(){
+  const outer=el('div',{style:{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
+  const box=el('div',{style:{background:C.black2,border:`1px solid ${C.border}`,borderRadius:'16px',padding:'44px 28px',maxWidth:'360px',width:'100%',textAlign:'center',boxShadow:`0 32px 80px ${C.shadow}`}});
+  box.appendChild(el('div',{style:{width:'56px',height:'56px',borderRadius:'12px',background:C.yellow,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.7rem',margin:'0 auto 16px'}},'🎲'));
+  box.appendChild(el('div',{style:{fontSize:'1.5rem',fontWeight:'900',letterSpacing:'2px',marginBottom:'4px',color:C.white}},'BOARDGAME ',el('span',{style:{color:C.yellow}},'RANKER')));
+  box.appendChild(el('div',{style:{color:C.muted,fontSize:'0.75rem',marginBottom:'16px'}},'Dein Score. Dein Urteil.'));
+  box.appendChild(el('div',{style:{color:C.border,fontSize:'0.55rem',marginBottom:'12px',letterSpacing:'1px'}},'v1.01'));
+  box.appendChild(el('div',{style:{height:'1px',background:C.border,marginBottom:'22px'}}));
+  box.appendChild(el('div',{style:{fontSize:'0.62rem',textTransform:'uppercase',letterSpacing:'2px',color:C.blue,marginBottom:'10px',fontWeight:'700'}},'BGG Username'));
+  const inp=el('input',{style:{width:'100%',background:C.black3,border:`1px solid ${C.border}`,borderRadius:'8px',padding:'12px 16px',color:C.white,fontSize:'0.95rem',outline:'none',marginBottom:'12px',textAlign:'center',display:'block'}});
+  inp.value=STATE.inputVal;inp.placeholder='Dein Username…';
+  inp.addEventListener('input',e=>{STATE.inputVal=e.target.value;});
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+  box.appendChild(inp);
+  box.appendChild(el('button',{style:{width:'100%',background:C.yellow,border:'none',borderRadius:'8px',padding:'13px',color:C.black,fontWeight:'900',fontSize:'0.82rem',cursor:'pointer',letterSpacing:'2px',textTransform:'uppercase',display:'block'},onclick:doLogin},'Sammlung laden →'));
+  box.appendChild(el('div',{style:{color:C.muted,fontSize:'0.62rem',marginTop:'16px',lineHeight:'1.8'}},'Direkt von BoardGameGeek geladen.',el('br'),'Keine Registrierung nötig.'));
+  outer.appendChild(box);setTimeout(()=>inp.focus(),100);return outer;
+}
+
+function renderXMLImport(){
+  const outer=el('div',{style:{minHeight:'100vh',padding:'20px',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}});
+  const box=el('div',{style:{background:C.black2,border:`1px solid ${C.border}`,borderRadius:'16px',padding:'24px',maxWidth:'420px',width:'100%',boxShadow:`0 32px 80px ${C.shadow}`}});
+
+  box.appendChild(el('div',{style:{fontWeight:'900',fontSize:'1.1rem',color:C.white,marginBottom:'4px',textAlign:'center'}},'BGG Login'));
+  box.appendChild(el('div',{style:{fontSize:'0.72rem',color:C.muted,marginBottom:'20px',lineHeight:'1.7',textAlign:'center'}},'Einmalig einloggen — wird danach gespeichert.'));
+
+  const statusEl=el('div',{style:{fontSize:'0.75rem',textAlign:'center',marginBottom:'12px',minHeight:'36px',lineHeight:'1.6',color:C.muted,padding:'0 4px'}});
+  box.appendChild(statusEl);
+
+  box.appendChild(el('div',{style:{fontSize:'0.62rem',textTransform:'uppercase',letterSpacing:'1.5px',color:C.blue,marginBottom:'6px',fontWeight:'700'}},'BGG Username'));
+  const userInp=el('input',{style:{width:'100%',background:C.black3,border:`1px solid ${C.border}`,borderRadius:'8px',padding:'11px 14px',color:C.white,fontSize:'0.9rem',outline:'none',marginBottom:'12px',display:'block',boxSizing:'border-box'}});
+  userInp.value=STATE.username;
+  userInp.addEventListener('input',e=>{STATE.username=e.target.value;});
+  box.appendChild(userInp);
+
+  box.appendChild(el('div',{style:{fontSize:'0.62rem',textTransform:'uppercase',letterSpacing:'1.5px',color:C.blue,marginBottom:'6px',fontWeight:'700'}},'BGG Passwort'));
+  const passInp=el('input',{style:{width:'100%',background:C.black3,border:`1px solid ${C.border}`,borderRadius:'8px',padding:'11px 14px',color:C.white,fontSize:'0.9rem',outline:'none',marginBottom:'16px',display:'block',boxSizing:'border-box'}});
+  passInp.type='password';
+  passInp.placeholder='Dein BGG-Passwort...';
+  passInp.value=STATE.password||'';
+  box.appendChild(passInp);
+
+  async function doLoad(){
+    const password=passInp.value.trim();
+    if(!password){statusEl.style.color='#e07070';statusEl.textContent='Bitte Passwort eingeben.';return;}
+    STATE.password=password;
+    loadBtn.disabled=true;loadBtn.style.opacity='0.7';loadBtn.textContent='Laden...';
+    statusEl.style.color=C.blue;
+
+    const workerBase='https://bgg-proxy.martinfaessler95.workers.dev/';
+    let text=null;
+    for(let i=0;i<8;i++){
+      statusEl.textContent='Sammlung laden... ('+(i+1)+'/8)';
+      try{
+        const res=await fetch(workerBase+'?username='+encodeURIComponent(STATE.username)+'&password='+encodeURIComponent(password));
+        const t=await res.text();
+        if(t&&t.length>100&&!t.includes('<message>')){text=t;break;}
+        if(t&&t.includes('<message>')){
+          statusEl.textContent='BGG bereitet Daten vor... ('+(i+1)+'/8) warte 5s';
+          await new Promise(r=>setTimeout(r,5000));
+        }else{
+          await new Promise(r=>setTimeout(r,3000));
+        }
+      }catch(e){
+        await new Promise(r=>setTimeout(r,2000));
+      }
+    }
+
+    if(!text){
+      statusEl.style.color='#e07070';statusEl.textContent='Konnte nicht laden. Passwort korrekt?';
+      loadBtn.disabled=false;loadBtn.style.opacity='1';loadBtn.textContent='Einloggen & Laden';
+      return;
+    }
+
+    const result=parseXML(text);
+    if(result.error){
+      statusEl.style.color='#e07070';statusEl.textContent=result.error;
+      loadBtn.disabled=false;loadBtn.style.opacity='1';loadBtn.textContent='Einloggen & Laden';
+      return;
+    }
+
+    STATE.games=result.games;save();
+    statusEl.style.color='#6BCB77';
+    statusEl.textContent=result.games.length+' Spiele geladen!';
+    setTimeout(()=>{STATE.screen='collection';render();},600);
+  }
+
+  const loadBtn=el('button',{style:{width:'100%',background:C.yellow,border:'none',borderRadius:'10px',padding:'14px',color:C.black,fontWeight:'900',fontSize:'0.9rem',cursor:'pointer',letterSpacing:'2px',textTransform:'uppercase',display:'block',boxShadow:`0 4px 20px ${C.yellow}44`,touchAction:'manipulation'},onclick:doLoad},'Einloggen & Laden');
+  box.appendChild(loadBtn);
+
+  box.appendChild(el('div',{style:{height:'10px'}}));
+  box.appendChild(el('button',{style:{width:'100%',background:'transparent',border:`1px solid ${C.border}`,borderRadius:'8px',padding:'10px',color:C.muted,fontWeight:'700',fontSize:'0.75rem',cursor:'pointer'},onclick:()=>{STATE.screen='login';render();}},'Zurueck'));
+  outer.appendChild(box);
+
+  // Auto-load if password already saved
+  if(STATE.password && STATE.username){
+    setTimeout(doLoad, 300);
+  }
+
+  return outer;
+}
+
+
+function renderCollection(){
+  const scored=STATE.games.map(g=>({...g,_score:calcScore(g.answers)}));
+  const unrated=scored.filter(g=>g._score===null&&Object.keys(g.answers).length===0).sort((a,b)=>{
+    const s=STATE.unrankedSort||'myrating';
+    if(s==='myrating')return(parseFloat(b.bggMyRating)||0)-(parseFloat(a.bggMyRating)||0)||parseFloat(b.bggRating)-parseFloat(a.bggRating);
+    if(s==='plays')return(b.plays||0)-(a.plays||0);
+    return parseFloat(b.bggRating)-parseFloat(a.bggRating);
+  });
+  const rated=scored.filter(g=>g._score!==null);
+  const unranked=rated.filter(g=>!STATE.ranking.includes(g.id));
+  const rankedGames=STATE.ranking.map(id=>scored.find(g=>g.id===id)).filter(Boolean);
+  const wrap=el('div',{style:{minHeight:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch'}});
+
+  // Header
+  const hdr=el('div',{style:{background:C.black2,borderBottom:`1px solid ${C.border}`,padding:'0 16px',height:'50px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:'0',zIndex:'10'}});
+  const titleDiv=el('div',{style:{display:'flex',flexDirection:'column',justifyContent:'center',gap:'1px'}});
+  const titleRow=el('div',{style:{display:'flex',alignItems:'baseline',gap:'6px'}});
+  titleRow.appendChild(el('span',{style:{fontWeight:'900',fontSize:'0.85rem',letterSpacing:'1.5px'}},'🎲 BOARDGAME ',el('span',{style:{color:C.yellow}},'RANKER')));
+  titleRow.appendChild(el('span',{style:{fontSize:'0.48rem',color:C.muted,letterSpacing:'1px'}},'v1.43'));
+  titleDiv.appendChild(titleRow);
+  hdr.appendChild(titleDiv);
+  const hr=el('div',{style:{display:'flex',alignItems:'center',gap:'8px'}});
+  hr.appendChild(el('span',{style:{fontSize:'0.65rem',color:C.blue}},'👤 '+STATE.username));
+  // Update button
+  hr.appendChild(el('button',{style:{background:'transparent',border:`1px solid ${C.blue}55`,borderRadius:'6px',padding:'3px 8px',color:C.blue,fontSize:'0.62rem',cursor:'pointer'},onclick:()=>{STATE.screen='xmlimport';STATE.xmlText='';STATE.xmlError='';render();}},'↻'));
+
+  hr.appendChild(el('button',{style:{background:'transparent',border:`1px solid ${C.yellow}55`,borderRadius:'6px',padding:'3px 8px',color:C.yellow,fontSize:'0.62rem',cursor:'pointer'},onclick:exportData},'↓'));
+  hr.appendChild(el('button',{style:{background:'transparent',border:`1px solid ${C.border}`,borderRadius:'6px',padding:'3px 8px',color:C.muted,fontSize:'0.62rem',cursor:'pointer'},onclick:()=>{document.getElementById('importFile').click();}},'↑'));
+  const fileInp=document.createElement('input');fileInp.type='file';fileInp.accept='.json';fileInp.id='importFile';fileInp.style.display='none';
+  fileInp.addEventListener('change',e=>{
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const data=JSON.parse(ev.target.result);
+        if(data.games){STATE.games=data.games;}
+        if(data.ranking){STATE.ranking=data.ranking;}
+        save();render();
+        alert(data.games.length+' Spiele importiert!');
+      }catch(err){alert('Fehler beim Importieren.');}
+    };
+    reader.readAsText(file);
+  });
+  document.body.appendChild(fileInp);
+  hr.appendChild(el('button',{style:{background:'transparent',border:`1px solid ${C.border}`,borderRadius:'6px',padding:'3px 8px',color:C.muted,fontSize:'0.62rem',cursor:'pointer'},onclick:()=>{STATE.screen='login';STATE.inputVal='';render();}},'↩'));
+  hdr.appendChild(hr);wrap.appendChild(hdr);
+
+  const main=el('div',{style:{maxWidth:'580px',margin:'0 auto',padding:'14px 12px 0'}});
+
+  // Stats
+  const sg=el('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px',marginBottom:'14px'}});
+  [[STATE.games.length,'Spiele',C.white],[rated.length,'Bewertet',C.blue],[rankedGames.length,'Gerankt',C.yellow],[unrated.length,'Offen',C.muted]].forEach(([v,l,col])=>{
+    const sc=el('div',{style:{background:C.black2,border:`1px solid ${C.border}`,borderRadius:'10px',padding:'10px 6px',textAlign:'center'}});
+    sc.appendChild(el('div',{style:{fontSize:'1.3rem',fontWeight:'900',color:col}},String(v)));
+    sc.appendChild(el('div',{style:{fontSize:'0.5rem',color:C.muted,marginTop:'3px',textTransform:'uppercase',letterSpacing:'0.8px'}},l));
+    sg.appendChild(sc);
+  });
+  main.appendChild(sg);
+
+  // Tabs
+  const tb=el('div',{style:{display:'flex',marginBottom:'14px',background:C.black2,border:`1px solid ${C.border}`,borderRadius:'10px',padding:'4px'}});
+  [['abarbeiten',`Unranked (${unrated.length})`],['ranking',`Ranking (${rated.length})`]].forEach(([id,label])=>{
+    const active=STATE.activeTab===id;
+    tb.appendChild(el('button',{style:{flex:'1',padding:'9px 8px',borderRadius:'7px',border:'none',background:active?C.yellow:'transparent',color:active?C.black:C.muted,fontWeight:'800',fontSize:'0.72rem',cursor:'pointer',textTransform:'uppercase',transition:'all 0.15s'},onclick:()=>{STATE.activeTab=id;render();}},label));
+  });
+  main.appendChild(tb);
+  wrap.appendChild(main);
+
+  const content=el('div',{style:{maxWidth:'580px',margin:'0 auto',padding:'0 12px 80px'}});
+
+  if(STATE.activeTab==='abarbeiten'){
+    // Sort + filter row for unranked tab
+    const controlRow=el('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap',marginBottom:'10px',alignItems:'center'}});
+    // Sort buttons
+    [['bggRating','BGG Rating'],['myrating','Mein BGG'],['plays','Häufigkeit']].forEach(([id,label])=>{
+      const active=(STATE.unrankedSort||'myrating')===id;
+      controlRow.appendChild(el('button',{style:{padding:'5px 12px',borderRadius:'20px',fontSize:'0.65rem',cursor:'pointer',border:`1px solid ${active?C.yellow:C.border}`,background:active?C.yellow+'22':'transparent',color:active?C.yellow:C.muted,fontWeight:'700'},onclick:()=>{STATE.unrankedSort=id;render();}},label));
+    });
+    content.appendChild(controlRow);
+    if(unranked.length>0){const n=el('div',{style:{background:C.blue+'15',border:`1px solid ${C.blue}33`,borderRadius:'10px',padding:'10px 14px',marginBottom:'12px',fontSize:'0.68rem',color:C.blue,lineHeight:'1.7'}});n.appendChild(el('span',{style:{fontWeight:'700'}},`${unranked.length} bewertete Spiele`));n.appendChild(document.createTextNode(' noch nicht eingerankt.'));content.appendChild(n);}
+    if(unrated.length===0&&unranked.length===0){
+      const done=el('div',{style:{textAlign:'center',padding:'48px 20px',color:C.muted}});
+      done.appendChild(el('div',{style:{fontSize:'2.5rem',marginBottom:'12px'}},'🏆'));
+      done.appendChild(el('div',{style:{fontWeight:'700',fontSize:'0.9rem',color:C.white,marginBottom:'6px'}},'Alles erledigt!'));
+      done.appendChild(el('div',{style:{fontSize:'0.72rem'}},'Alle Spiele bewertet und gerankt.'));
+      content.appendChild(done);
+    }else{
+      if(unranked.length>0){content.appendChild(el('div',{style:{fontSize:'0.6rem',color:C.blue,marginBottom:'8px',letterSpacing:'0.5px',fontWeight:'700',textTransform:'uppercase'}},'Bewertet, noch nicht gerankt'));unranked.forEach((g,i)=>content.appendChild(makeGameCard(g,i,g._score,game=>{STATE.rankPrompt=game;render();})));content.appendChild(el('div',{style:{height:'8px'}}));}
+      if(unrated.length>0){content.appendChild(el('div',{style:{fontSize:'0.6rem',color:C.muted,marginBottom:'8px',letterSpacing:'0.5px',fontWeight:'700',textTransform:'uppercase'}},'Noch nicht bewertet · sortiert nach BGG'));unrated.forEach((g,i)=>content.appendChild(makeGameCard(g,i,null,game=>{STATE.surveyGame=game;render();})));}
+    }
+  }else{
+    const sw=el('div',{style:{marginBottom:'12px'}});
+    sw.appendChild(el('div',{style:{fontSize:'0.6rem',color:C.muted,textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'}},'Sortieren nach'));
+    const sb=el('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}});
+    [['rank','Persönliche Rangliste'],['bgg','BGG Rating'],['plays','Häufigkeit'],['app','Bewertungs-Score']].forEach(([id,label])=>{
+      const active=STATE.sortBy===id;
+      sb.appendChild(el('button',{style:{padding:'6px 12px',borderRadius:'20px',border:`1px solid ${active?C.yellow:C.border}`,background:active?C.yellow+'22':'transparent',color:active?C.yellow:C.muted,fontWeight:'700',fontSize:'0.68rem',cursor:'pointer',transition:'all 0.15s'},onclick:()=>{STATE.sortBy=id;if(id!=='app')STATE.sortCat=null;render();}},label));
+    });
+    sw.appendChild(sb);
+    if(STATE.sortBy==='app'){
+      sw.appendChild(el('div',{style:{height:'1px',background:C.border,margin:'10px 0 8px'}}));
+      sw.appendChild(el('div',{style:{fontSize:'0.55rem',color:C.muted,textTransform:'uppercase',letterSpacing:'1px',marginBottom:'6px'}},'Kategorie'));
+      const cb=el('div',{style:{display:'flex',gap:'5px',flexWrap:'wrap'}});
+      const aa=STATE.sortCat===null;
+      cb.appendChild(el('button',{style:{padding:'4px 10px',borderRadius:'20px',fontSize:'0.58rem',cursor:'pointer',border:`1px solid ${aa?C.blue:C.border}`,background:aa?C.blue+'22':'transparent',color:aa?C.blue:C.muted,fontWeight:'700'},onclick:()=>{STATE.sortCat=null;render();}},'Gesamt'));
+      QUESTIONS.forEach(q=>{const qa=STATE.sortCat===q.id;cb.appendChild(el('button',{style:{padding:'4px 10px',borderRadius:'20px',fontSize:'0.58rem',cursor:'pointer',border:`1px solid ${qa?C.blue:C.border}`,background:qa?C.blue+'22':'transparent',color:qa?C.blue:C.muted,fontWeight:'700'},onclick:()=>{STATE.sortCat=q.id;render();}},q.title));});
+      sw.appendChild(cb);
+    }
+    content.appendChild(sw);
+    // ELO reset button in ranking tab
+    if(STATE.ranking.length>0){
+      const eloResetBtn=el('button',{style:{padding:'5px 12px',borderRadius:'20px',fontSize:'0.62rem',cursor:'pointer',border:`1px solid #e0707055`,background:'transparent',color:'#e07070',fontWeight:'700',marginBottom:'10px',display:'block'},onclick:()=>{STATE.showEloReset=true;render();}},'⟳ Ranking zurücksetzen');
+      content.appendChild(eloResetBtn);
+    }
+    if(rated.length===0){const e=el('div',{style:{textAlign:'center',padding:'48px 20px',color:C.muted}});e.appendChild(el('div',{style:{fontSize:'2.5rem',marginBottom:'12px'}},'📊'));e.appendChild(el('div',{style:{fontSize:'0.8rem'}},'Noch keine Bewertungen.'));content.appendChild(e);}
+    else{
+      const sorted=[...rated].sort((a,b)=>{
+        if(STATE.sortBy==='rank'){
+          const wa=getWinRate(a)??-1,wb=getWinRate(b)??-1;
+          const ta=getWins(a)+getLosses(a),tb=getWins(b)+getLosses(b);
+          if(wa!==wb)return wb-wa;
+          return tb-ta;
+        }
+        if(STATE.sortBy==='bgg')return parseFloat(b.bggRating)-parseFloat(a.bggRating);
+        if(STATE.sortBy==='plays')return(b.plays||0)-(a.plays||0);
+        if(STATE.sortBy==='app'){if(STATE.sortCat)return(calcCatScore(b.answers,STATE.sortCat)??-1)-(calcCatScore(a.answers,STATE.sortCat)??-1);return(b._score??-1)-(a._score??-1);}
+        return 0;
+      });
+      sorted.forEach((g,i)=>{
+        const ri=STATE.ranking.indexOf(g.id);
+        const ds=STATE.sortBy==='app'&&STATE.sortCat?calcCatScore(g.answers,STATE.sortCat):g._score;
+        // Always use current sorted position (i) as rank number, not stored position (ri)
+        const displayRank=ri>=0?i:-1;
+        const card=makeGameCard(g,displayRank,ds,game=>{STATE.surveyGame=game;render();},true);
+        if(ri<0){card.style.opacity='0.4';card.style.filter='grayscale(50%)';}
+        content.appendChild(card);
+      });
+    }
+  }
+  wrap.appendChild(content);
+  if(STATE.surveyGame)wrap.appendChild(renderSurvey());
+  if(STATE.rankPrompt)wrap.appendChild(renderRankPrompt());
+  if(STATE.pairGame)wrap.appendChild(renderPairwise());
+  if(STATE.pairCancelConfirm){
+    const modal=el('div',{style:{position:'fixed',inset:'0',background:'rgba(0,0,0,0.85)',zIndex:'500',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
+    const box=el('div',{style:{background:C.black2,border:`1px solid ${C.border}`,borderRadius:'16px',padding:'28px',maxWidth:'320px',width:'100%',textAlign:'center'}});
+    box.appendChild(el('div',{style:{fontSize:'2rem',marginBottom:'12px'}},'⚠️'));
+    box.appendChild(el('div',{style:{fontWeight:'900',fontSize:'1rem',color:C.white,marginBottom:'8px'}},'Ranking abbrechen?'));
+    box.appendChild(el('div',{style:{fontSize:'0.75rem',color:C.muted,marginBottom:'20px',lineHeight:'1.6'}},'Alle bisherigen Vergleiche dieses Ranking-Vorgangs werden verworfen. Das Spiel bleibt ungerankt.'));
+    const btnRow=el('div',{style:{display:'flex',gap:'10px'}});
+    btnRow.appendChild(el('button',{style:{flex:'1',background:'transparent',border:`1px solid ${C.border}`,borderRadius:'8px',padding:'12px',color:C.muted,fontWeight:'700',fontSize:'0.8rem',cursor:'pointer'},onclick:()=>{STATE.pairCancelConfirm=false;render();}},'Weiter ranken'));
+    btnRow.appendChild(el('button',{style:{flex:'1',background:'#e07070',border:'none',borderRadius:'8px',padding:'12px',color:C.white,fontWeight:'900',fontSize:'0.8rem',cursor:'pointer'},onclick:()=>{
+      STATE.pairGame=null;STATE.pairQueue=[];STATE.pairResults={};STATE.pairCurrent=0;STATE.pairCancelConfirm=false;
+      render();
+    }},'Abbrechen'));
+    box.appendChild(btnRow);
+    modal.appendChild(box);
+    wrap.appendChild(modal);
+  }
+  if(STATE.showEloReset){
+    const modal=el('div',{style:{position:'fixed',inset:'0',background:'rgba(0,0,0,0.85)',zIndex:'400',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
+    const box=el('div',{style:{background:C.black2,border:`1px solid ${C.border}`,borderRadius:'16px',padding:'28px',maxWidth:'320px',width:'100%',textAlign:'center'}});
+    box.appendChild(el('div',{style:{fontSize:'2rem',marginBottom:'12px'}},'⚠️'));
+    box.appendChild(el('div',{style:{fontWeight:'900',fontSize:'1rem',color:C.white,marginBottom:'8px'}},'Ranking zurücksetzen?'));
+    box.appendChild(el('div',{style:{fontSize:'0.75rem',color:C.muted,marginBottom:'20px',lineHeight:'1.6'}},'Alle Vergleiche, Siege/Niederlagen und Ränge werden gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.'));
+    const btnRow=el('div',{style:{display:'flex',gap:'10px'}});
+    btnRow.appendChild(el('button',{style:{flex:'1',background:'transparent',border:`1px solid ${C.border}`,borderRadius:'8px',padding:'12px',color:C.muted,fontWeight:'700',fontSize:'0.8rem',cursor:'pointer'},onclick:()=>{STATE.showEloReset=false;render();}},'Abbrechen'));
+    btnRow.appendChild(el('button',{style:{flex:'1',background:'#e07070',border:'none',borderRadius:'8px',padding:'12px',color:C.white,fontWeight:'900',fontSize:'0.8rem',cursor:'pointer'},onclick:()=>{
+      STATE.ranking=[];
+      STATE.games=STATE.games.map(g=>({...g,pairHistory:{}}));
+      STATE.showEloReset=false;
+      STATE.activeTab='abarbeiten';
+      save();render();
+    }},'Zurücksetzen'));
+    box.appendChild(btnRow);
+    modal.appendChild(box);
+    wrap.appendChild(modal);
+  }
+  return wrap;
+}
+
+function exportData(){
+  const data={
+    username: STATE.username,
+    games: STATE.games,
+    ranking: STATE.ranking,
+    exportDate: new Date().toISOString(),
+  };
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='boardgame-ranker-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function doLogin(){
+  const raw=STATE.inputVal.trim();
+  const u=raw.startsWith('@')?raw.slice(1):raw;
+  if(!u)return;
+  STATE.username=u;STATE.inputVal=u;
+  STATE.xmlText='';STATE.xmlError='';
+  STATE.screen='xmlimport';
+  render();
+}
+
+function render(){
+  const app=document.getElementById('app');
+  app.innerHTML='';
+  if(STATE.screen==='login')app.appendChild(renderLogin());
+  else if(STATE.screen==='xmlimport')app.appendChild(renderXMLImport());
+  else if(STATE.screen==='collection')app.appendChild(renderCollection());
+}
+
+render();
+</script>
+</body>
+</html>
